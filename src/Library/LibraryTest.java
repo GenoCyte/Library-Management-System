@@ -8,30 +8,9 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 public class LibraryTest {
-    static String dbUrl = "jdbc:mysql://localhost:3306/Library";
+    static String dbUrl = "jdbc:mysql://localhost:3306/library";
     static String dbUser = "root";
     static String dbPass = "";
-    
-    public static void login(String getName, String getPass){
-        try{
-            Connection conn = null;
-            conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);          
-            Statement login = conn.createStatement();
-            String sql = "SELECT * FROM user;";
-            ResultSet rs = login.executeQuery(sql);
-
-            while(rs.next()){
-                if(rs.getString(1).equals(getName) && rs.getString(2).equals(getPass)){
-                    System.out.println("Login Successful");
-                }else{
-                    System.out.println("Username and Password are incorrect");
-                }
-            }
-        }
-        catch(Exception e){
-            System.err.println(e);
-        }
-    }
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -62,6 +41,27 @@ public class LibraryTest {
         }
     }
     
+    public static void login(String getName, String getPass){
+        try{
+            Connection conn = null;
+            conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);          
+            Statement login = (Statement) conn.createStatement();
+            String sql = "SELECT * FROM user;";
+            ResultSet rs = login.executeQuery(sql);
+
+            while(rs.next()){
+                if(rs.getString(1).equals(getName) && rs.getString(2).equals(getPass)){
+                    System.out.println("Login Successful");
+                }else{
+                    System.out.println("Username and Password are incorrect");
+                }
+            }
+        }
+        catch(Exception e){
+            System.err.println(e);
+        }
+    }
+    
     public static void signup(String name, String pass){
         try{
             Connection conn = null;
@@ -70,6 +70,7 @@ public class LibraryTest {
             Random rnd = new Random();
             int number = rnd.nextInt(999999);
             int otp = Integer.parseInt(String.format("%06d",number));
+            
             
             String insert = "INSERT INTO user (name, pass, otp) VALUES('"+name+"', '"+pass+"', "+otp+");";
             state.executeUpdate(insert);

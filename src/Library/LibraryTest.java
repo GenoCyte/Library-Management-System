@@ -25,13 +25,21 @@ public class LibraryTest {
                     String username = sc.nextLine();
                     System.out.print("Password: ");
                     String pass = sc.nextLine();
-                    login(username, pass);
+                    if(login(username, pass)){
+                        System.out.println("Login Successful");
+                    }else{
+                        System.out.println("Username and Password are incorrect");
+                    }
                     break;
                 case 2:
                     System.out.print("Username: ");
                     String username2 = sc.nextLine();
                     System.out.print("Password: ");
                     String pass2 = sc.nextLine();
+                    if(nameChecker(username2)){
+                        System.out.println("Name is already used");
+                        break;
+                    }
                     signup(username2, pass2);
                     break;
                 case 3:
@@ -41,24 +49,20 @@ public class LibraryTest {
         }
     }
     
-    public static void login(String getName, String getPass){
-        try{
-            Connection conn = null;
-            conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);          
-            Statement login = (Statement) conn.createStatement();
-            String sql = "SELECT * FROM user;";
-            ResultSet rs = login.executeQuery(sql);
+    public static boolean login(String name, String pass){
+        String query = "SELECT * FROM user WHERE name = ? AND pass = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
 
-            while(rs.next()){
-                if(rs.getString(1).equals(getName) && rs.getString(2).equals(getPass)){
-                    System.out.println("Login Successful");
-                }else{
-                    System.out.println("Username and Password are incorrect");
-                }
-            }
-        }
-        catch(Exception e){
-            System.err.println(e);
+            stmt.setString(1, name);
+            stmt.setString(2, pass);
+
+            ResultSet rs = stmt.executeQuery();
+
+            return rs.next(); // Returns true if user exists
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
     
@@ -78,6 +82,22 @@ public class LibraryTest {
             System.out.println("Registered Successfully");
         }catch(Exception e){
             System.err.println(e);
+        }
+    }
+    
+    public static boolean nameChecker(String name){
+        String query = "SELECT name FROM user WHERE name = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, name);
+
+            ResultSet rs = stmt.executeQuery();
+
+            return rs.next(); // Returns true if user exists
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
 }

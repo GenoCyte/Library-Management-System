@@ -1,4 +1,4 @@
-package Library;
+package LibraryTest;
 
 import javax.swing.*;
 import java.awt.*;

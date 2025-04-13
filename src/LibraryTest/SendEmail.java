@@ -1,4 +1,4 @@
-package Library;
+package LibraryTest;
 
 import javax.mail.*;
 import javax.mail.internet.*;

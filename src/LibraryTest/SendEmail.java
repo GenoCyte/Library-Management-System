@@ -41,7 +41,7 @@ public class SendEmail {
 			msg.setFrom(new InternetAddress(senderEmail));
 			msg.addRecipient(Message.RecipientType.TO, new InternetAddress(receiverEmail));
 			Transport.send(msg);
-			System.out.println("Message sent successfully");
+			System.out.println("OTP sent successfully");
 		}
 		
 		catch (Exception e) {

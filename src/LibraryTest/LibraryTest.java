@@ -104,11 +104,7 @@ public class LibraryTest extends JFrame{
     private JPanel createP2(){
         JPanel p = new JPanel();
         p.setLayout(null);
-        
-        JLabel l1 = new JLabel("Halimaw");
-        l1.setBounds(210, 200, 90,15);
-        p.add(l1);
-        
+
         JButton b1 = new JButton("Back");
         b1.setBounds(30, 30, 80, 30);
         b1.addActionListener(new ActionListener(){
@@ -120,6 +116,56 @@ public class LibraryTest extends JFrame{
             }
         });
         p.add(b1);
+        
+        JLabel l1 = new JLabel("Forgot Password");
+        l1.setBounds(220, 50, 150, 30);
+        p.add(l1);
+        
+        JLabel l2 = new JLabel("Email:");
+        l2.setBounds(120, 150, 90, 15);
+        p.add(l2);
+        
+        JTextField email = new JTextField();
+        email.setBounds(200, 150, 150, 20);
+        p.add(email);
+        
+        JLabel l3 = new JLabel("New Password:");
+        l3.setBounds(90, 200, 90, 15);
+        p.add(l3);
+        
+        JTextField newPassword = new JTextField();
+        newPassword.setBounds(200, 200, 150, 20);
+        p.add(newPassword);
+        
+        JLabel l4 = new JLabel("Confirm Password:");
+        l4.setBounds(70, 250, 150, 15);
+        p.add(l4);
+        
+        JTextField confirmPassword = new JTextField();
+        confirmPassword.setBounds(200, 250, 150, 20);
+        p.add(confirmPassword);
+        
+        JButton b2 = new JButton("Send OTP");
+        b2.setBounds(90, 300, 90, 20);
+        b2.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                sendOtp(email.getText());
+            }
+        });
+        p.add(b2);
+        
+        JTextField otp = new JTextField();
+        otp.setBounds(200, 300, 150, 20);
+        p.add(otp);
+        
+        JButton b3 = new JButton("Submit");
+        b3.setBounds(205, 350, 80, 30);
+        b3.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                changePassword(email.getText(),newPassword.getText());
+            }
+        });
+        p.add(b3);
         
         return p;
     }
@@ -237,6 +283,62 @@ public class LibraryTest extends JFrame{
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
+        }
+    }
+    
+    public void sendOtp(String email) {
+        String otp;
+
+        // Generate a 6-digit OTP
+        Random rnd = new Random();
+        int number = rnd.nextInt(999999);
+        otp = String.format("%06d", number); // e.g. "083245"
+
+        String updateQuery = "UPDATE user SET otp = ? WHERE email = ?";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
+
+            stmt.setString(1, otp); // Store OTP as String
+            stmt.setString(2, email);
+
+            int rowsAffected = stmt.executeUpdate();
+
+            if (rowsAffected == 0) {
+                JOptionPane.showMessageDialog(mainPanel, "Email not found");
+                return;
+            }
+
+            // Send email with OTP
+            String body = "The OTP for password change is - " + otp + " - . Do not share it with anyone.";
+            SendEmail sm = new SendEmail(email, "Change Password", body);
+            JOptionPane.showMessageDialog(mainPanel, "OTP sent successfully");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(mainPanel, "Error occurred while sending OTP");
+        }
+    }
+    
+    public void changePassword(String email, String password) {
+        String query = "UPDATE user SET pass = ? WHERE email = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, password); // set password
+            stmt.setString(2, email);    // set email
+
+            int rowsAffected = stmt.executeUpdate();
+
+            if (rowsAffected > 0) {
+                JOptionPane.showMessageDialog(mainPanel, "Password changed successfully");
+            } else {
+                JOptionPane.showMessageDialog(mainPanel, "Email not found. Password not changed.");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(mainPanel, "Error changing password");
         }
     }
     

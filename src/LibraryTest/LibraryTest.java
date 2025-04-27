@@ -162,7 +162,28 @@ public class LibraryTest extends JFrame{
         b3.setBounds(205, 350, 80, 30);
         b3.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
-                changePassword(email.getText(),newPassword.getText());
+                try {
+                    int otpValue = Integer.parseInt(otp.getText());
+                    if(!newPassword.getText().equals(confirmPassword.getText())){
+                        JOptionPane.showMessageDialog(p, "New Password and Confirm Password must be the same");
+                    }else{
+                        if (otpChecker(email.getText(), otpValue)) {
+                            changePassword(email.getText(), newPassword.getText());
+                            email.setText("");
+                            newPassword.setText("");
+                            confirmPassword.setText("");
+                            otp.setText("");
+                            p2.setVisible(false);
+                            p1.setVisible(true);
+                            mainPanel.revalidate();
+                            mainPanel.repaint();
+                        } else {
+                            JOptionPane.showMessageDialog(p, "Invalid OTP");
+                        }
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(p, "OTP must be a number");
+                }
             }
         });
         p.add(b3);
@@ -317,6 +338,27 @@ public class LibraryTest extends JFrame{
         } catch (SQLException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(mainPanel, "Error occurred while sending OTP");
+        }
+    }
+    
+    public boolean otpChecker(String email, int otp){
+        String query = "SELECT otp FROM user WHERE email = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, email);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                int rsOtp = rs.getInt("otp");
+                return rsOtp == otp;
+            } else {
+                return false;
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
     

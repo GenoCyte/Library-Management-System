@@ -106,49 +106,94 @@ public class FileUpload extends JFrame{
                 bookRegister(name.getText(), genre.getText(), filePath);
             }
         });
-        
         p.add(b2);
+        
+        JButton b3 = new JButton("Show Books");
+        b3.setBounds(180, 350, 140,30);
+        b3.addActionListener(new ActionListener(){
+            public void actionPerformed(ActionEvent e){
+                p1.setVisible(false);
+                p2.setVisible(true);
+                mainPanel.revalidate();
+                mainPanel.repaint();
+            }
+        });
+        p.add(b3);
         
         return p;
     }
     
-    private JPanel createP2(){
-        JPanel p = new JPanel();
-        p.setLayout(null);
+    private JPanel createP2() {
+        JPanel p = new JPanel(new BorderLayout());
         p.setBounds(0, 0, 500, 500);
-        
-        JLabel l1 = new JLabel("BOOK SHOW");
-        l1.setBounds(180, 50, 140,30);
-        p.add(l1);
-        
-        JLabel imageLabel = new JLabel();
-        imageLabel.setBounds(150,150,100,150);
-        p.add(imageLabel);
-        try{
-            Connection conn = null;
-            conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
-            Statement state = (Statement) conn.createStatement();        
 
-            String sql = "SELECT image FROM books WHERE id = ?";
+        // Top bar with Back button
+        JPanel topPanel = new JPanel(null);
+        topPanel.setPreferredSize(new Dimension(500, 50));
+        JButton b1 = new JButton("Back");
+        b1.setBounds(10, 10, 80, 30);
+        b1.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                p.setVisible(false);
+                p1.setVisible(true);
+                mainPanel.revalidate();
+                mainPanel.repaint();
+            }
+        });
+        topPanel.add(b1);
+        p.add(topPanel, BorderLayout.NORTH);
+
+        // Grid panel for books
+        JPanel gridPanel = new JPanel(new GridLayout(0, 3, 5, 5));
+        gridPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        try {
+            Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+            String sql = "SELECT name, image FROM books";
             PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, 3);
             ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
+
+            while (rs.next()) {
+                String bookName = rs.getString("name");
                 InputStream is = rs.getBinaryStream("image");
                 BufferedImage img = ImageIO.read(is);
+
+                JPanel bookPanel = new JPanel();
+                bookPanel.setLayout(new BoxLayout(bookPanel, BoxLayout.Y_AXIS));
+                bookPanel.setOpaque(false);
+                bookPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+                JLabel imageLabel = new JLabel();
+                imageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                imageLabel.setPreferredSize(new Dimension(100, 150));
+
                 if (img != null) {
-                    Image scaledImage = img.getScaledInstance(imageLabel.getWidth(), imageLabel.getHeight(), Image.SCALE_SMOOTH);
+                    Image scaledImage = img.getScaledInstance(100, 150, Image.SCALE_SMOOTH);
                     imageLabel.setIcon(new ImageIcon(scaledImage));
                 } else {
-                    imageLabel.setText("Failed to load image.");
+                    imageLabel.setText("No Image");
                 }
+
+                JLabel nameLabel = new JLabel(bookName);
+                nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                nameLabel.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0)); // small top margin
+
+                bookPanel.add(imageLabel);
+                bookPanel.add(nameLabel);
+
+                gridPanel.add(bookPanel);
             }
 
-        }catch(Exception e){
-            System.err.println(e);
+            conn.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        
+
+        JScrollPane scrollPane = new JScrollPane(gridPanel);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setBorder(null);
+        p.add(scrollPane, BorderLayout.CENTER);
+
         return p;
     }
     

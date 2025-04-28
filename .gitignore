@@ -1,2 +1,5 @@
 /build/
 /nbproject/private/
+/dist/*.jar
+!dist/YourProjectName.jar
+*.class

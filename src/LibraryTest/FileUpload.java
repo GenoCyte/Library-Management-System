@@ -5,6 +5,8 @@ import java.util.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Date;
+import java.text.SimpleDateFormat;
 import java.util.Properties;
 import java.awt.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -13,6 +15,8 @@ import javax.swing.*;
 import java.io.*;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 public class FileUpload extends JFrame{
     
@@ -24,7 +28,7 @@ public class FileUpload extends JFrame{
     JPanel p1, p2;
     
     public FileUpload(){
-        setSize(500,500);
+        setSize(515,500);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         
@@ -32,7 +36,7 @@ public class FileUpload extends JFrame{
         setContentPane(mainPanel);
         
         p1 = createP1();
-        p2 = createP2();
+        p2 = new JPanel();
         
         p1.setBounds(0, 0, 500, 500);
         p2.setBounds(0, 0, 500, 500);
@@ -104,6 +108,9 @@ public class FileUpload extends JFrame{
         b2.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 bookRegister(name.getText(), genre.getText(), filePath);
+                name.setText("");
+                genre.setText("");
+                previewLabel.setIcon(null);
             }
         });
         p.add(b2);
@@ -112,8 +119,14 @@ public class FileUpload extends JFrame{
         b3.setBounds(180, 350, 140,30);
         b3.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
+                mainPanel.remove(p2);    // Remove old p2 if exists
+                p2 = createP2();         // Recreate p2 fresh
+                p2.setBounds(0, 0, 500, 500);
+                mainPanel.add(p2);        // Add the new p2
+
                 p1.setVisible(false);
                 p2.setVisible(true);
+
                 mainPanel.revalidate();
                 mainPanel.repaint();
             }
@@ -125,11 +138,11 @@ public class FileUpload extends JFrame{
     
     private JPanel createP2() {
         JPanel p = new JPanel(new BorderLayout());
-        p.setBounds(0, 0, 500, 500);
+        p.setPreferredSize(new Dimension(500, 500));
 
-        // Top bar with Back button
         JPanel topPanel = new JPanel(null);
-        topPanel.setPreferredSize(new Dimension(500, 50));
+        topPanel.setPreferredSize(new Dimension(500, 100));
+
         JButton b1 = new JButton("Back");
         b1.setBounds(10, 10, 80, 30);
         b1.addActionListener(new ActionListener() {
@@ -141,19 +154,60 @@ public class FileUpload extends JFrame{
             }
         });
         topPanel.add(b1);
+
+        JTextField searchField = new JTextField();
+        searchField.setBounds(100, 10, 250, 40);
+        searchField.setBorder(BorderFactory.createTitledBorder("Search"));
+        topPanel.add(searchField);
+
+        JComboBox<String> genreComboBox = new JComboBox<>(new String[]{"All Genres", "Math", "Science", "Business", "History", "Psychology", "Novel", "Philosophy", "Encyclopedia", "Dictionary"});
+        genreComboBox.setBounds(360, 10, 130, 40);
+        topPanel.add(genreComboBox);
+
+        JPanel gridPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        gridPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JScrollPane scrollPane = new JScrollPane(gridPanel);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setBorder(null);
+        p.add(scrollPane, BorderLayout.CENTER);
+
+        ActionListener updateDisplay = new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                updateBookDisplay(searchField.getText(), genreComboBox.getSelectedItem().toString(), gridPanel);
+            }
+        };
+
+        searchField.addActionListener(updateDisplay);
+        genreComboBox.addActionListener(updateDisplay);
+
         p.add(topPanel, BorderLayout.NORTH);
 
-        // Grid panel for books
-        JPanel gridPanel = new JPanel(new GridLayout(0, 3, 5, 5));
-        gridPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        // Initially display all books
+        updateBookDisplay("", "All Genres", gridPanel);
 
-        try {
-            Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
-            String sql = "SELECT name, image FROM books";
-            PreparedStatement stmt = conn.prepareStatement(sql);
+        return p;
+    }
+
+    private void updateBookDisplay(String searchQuery, String genreFilter, JPanel gridPanel) {
+        gridPanel.removeAll();
+
+        int bookCount = 0;
+        String sql = "SELECT id, name, image, genre FROM books WHERE name LIKE ? AND (? = 'All Genres' OR genre = ?)";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, searchQuery + "%");
+            stmt.setString(2, genreFilter);
+            stmt.setString(3, genreFilter);
+
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
+                bookCount++;
+
+                int bookId = rs.getInt("id"); // get the id
                 String bookName = rs.getString("name");
                 InputStream is = rs.getBinaryStream("image");
                 BufferedImage img = ImageIO.read(is);
@@ -162,6 +216,7 @@ public class FileUpload extends JFrame{
                 bookPanel.setLayout(new BoxLayout(bookPanel, BoxLayout.Y_AXIS));
                 bookPanel.setOpaque(false);
                 bookPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                bookPanel.setPreferredSize(new Dimension(140, 200));
 
                 JLabel imageLabel = new JLabel();
                 imageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -174,9 +229,29 @@ public class FileUpload extends JFrame{
                     imageLabel.setText("No Image");
                 }
 
+                // Mouse click to show details
+                imageLabel.addMouseListener(new MouseAdapter() {
+                    public void mouseClicked(MouseEvent e) {
+                        // Create a new panel to display book details
+                        JPanel detailPanel = createBookDetailPanel(bookId, bookName, genreFilter);
+
+                        // Remove the current panel and display the new detail panel
+                        mainPanel.remove(p2);
+                        p2 = detailPanel;
+                        p2.setBounds(0, 0, 500, 500);
+                        mainPanel.add(p2);
+
+                        p1.setVisible(false);
+                        p2.setVisible(true);
+
+                        mainPanel.revalidate();
+                        mainPanel.repaint();
+                    }
+                });
+
                 JLabel nameLabel = new JLabel(bookName);
                 nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-                nameLabel.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0)); // small top margin
+                nameLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
 
                 bookPanel.add(imageLabel);
                 bookPanel.add(nameLabel);
@@ -189,26 +264,109 @@ public class FileUpload extends JFrame{
             e.printStackTrace();
         }
 
-        JScrollPane scrollPane = new JScrollPane(gridPanel);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setBorder(null);
-        p.add(scrollPane, BorderLayout.CENTER);
+        int rows = (int) Math.ceil(bookCount / 3.0);
+        int height = rows * 220;
+        gridPanel.setPreferredSize(new Dimension(500, height));
 
-        return p;
+        gridPanel.revalidate();
+        gridPanel.repaint();
     }
     
-    public void bookRegister(String name, String genre, String image){
+    private JPanel createBookDetailPanel(int bookId, String bookName, String genre) {
+    JPanel p = new JPanel();
+    p.setLayout(null);
+
+    // Labels for book details
+    JLabel nameLabel = new JLabel("Name: " + bookName);
+    nameLabel.setBounds(50, 50, 400, 30);
+    p.add(nameLabel);
+
+    JLabel genreLabel = new JLabel("Genre: " + genre);
+    genreLabel.setBounds(50, 100, 400, 30);
+    p.add(genreLabel);
+
+    JLabel dateLabel = new JLabel("Date: ");
+    dateLabel.setBounds(50, 150, 400, 30);
+    p.add(dateLabel);
+
+    JLabel imageLabel = new JLabel();
+    imageLabel.setBounds(50, 200, 400, 300);
+    p.add(imageLabel);
+
+    // Fetch book details from database
+    String sql = "SELECT name, genre, date, image FROM books WHERE id = ?";
+
+    try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setInt(1, bookId);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            String name = rs.getString("name");
+            String bookGenre = rs.getString("genre");
+            Date date = rs.getDate("date");
+            InputStream is = rs.getBinaryStream("image");
+            BufferedImage img = ImageIO.read(is);
+
+            // Update labels
+            nameLabel.setText("Name: " + name);
+            genreLabel.setText("Genre: " + bookGenre);
+            dateLabel.setText("Date: " + date.toString());
+
+            // Set image
+            if (img != null) {
+                Image scaledImage = img.getScaledInstance(400, 300, Image.SCALE_SMOOTH);
+                imageLabel.setIcon(new ImageIcon(scaledImage));
+            } else {
+                imageLabel.setText("No Image Available");
+            }
+        }
+        rs.close();
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+
+    // Back button to return to book list (p2 panel)
+    JButton backButton = new JButton("Back");
+    backButton.setBounds(200, 10, 100, 30);
+    backButton.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            // Make the current detail panel invisible and show p2 (book list)
+            p.setVisible(false);  // Hide the detail panel (p)
+            p2.setVisible(true);   // Show the book list panel (p2)
+
+            mainPanel.revalidate();  // Revalidate the layout after panel changes
+            mainPanel.repaint();     // Repaint the main panel to reflect changes
+        }
+    });
+    p.add(backButton);
+
+    return p;
+}
+    
+    public void bookRegister(String name, String genre, String image) {
         try {
             Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
 
-            String insert = "INSERT INTO books (name, genre, image) VALUES (?, ?, ?)";
+            String insert = "INSERT INTO books (name, genre, date, image) VALUES (?, ?, ?, ?)";
             PreparedStatement stmt = conn.prepareStatement(insert);
-            stmt.setString(1, name);
-            stmt.setString(2, genre);
 
+            // Convert image file to binary stream
             File imageFile = new File(image);
             FileInputStream fis = new FileInputStream(imageFile);
-            stmt.setBinaryStream(3, fis, (int) imageFile.length());
+
+            // Get current date
+            LocalDate currentDate = LocalDate.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            String formattedDate = currentDate.format(formatter);
+            Date sqlDate = Date.valueOf(currentDate);  // Convert LocalDate to SQL Date
+
+            // Set parameters in the prepared statement
+            stmt.setString(1, name); // name
+            stmt.setString(2, genre); // genre
+            stmt.setDate(3, sqlDate); // date
+            stmt.setBinaryStream(4, fis, (int) imageFile.length()); // image (binary stream)
 
             stmt.executeUpdate();
             JOptionPane.showMessageDialog(mainPanel, "Registration Successful");

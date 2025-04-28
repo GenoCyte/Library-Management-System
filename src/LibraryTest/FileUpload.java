@@ -120,10 +120,10 @@ public class FileUpload extends JFrame{
         b3.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 mainPanel.remove(p2);    // Remove old p2 if exists
-                p2 = createP2();         // Recreate p2 fresh
+                p2 = showBookList();         // Recreate p2 fresh
                 p2.setBounds(0, 0, 500, 500);
                 mainPanel.add(p2);        // Add the new p2
-
+                
                 p1.setVisible(false);
                 p2.setVisible(true);
 
@@ -136,7 +136,23 @@ public class FileUpload extends JFrame{
         return p;
     }
     
-    private JPanel createP2() {
+    private JPanel createP2(){
+        JPanel p2MainPanel = new JPanel(null);
+        p2MainPanel.setPreferredSize(new Dimension(500,500));
+        
+        JPanel p1,p2;
+        
+        p1 = showBookList();
+        p1.setBounds(0, 0, 515, 500);
+        
+        p2MainPanel.add(p1);
+        
+        p1.setVisible(true);
+        
+        return p2MainPanel;
+    }
+    
+    private JPanel showBookList() {
         JPanel p = new JPanel(new BorderLayout());
         p.setPreferredSize(new Dimension(500, 500));
 
@@ -273,77 +289,101 @@ public class FileUpload extends JFrame{
     }
     
     private JPanel createBookDetailPanel(int bookId, String bookName, String genre) {
-    JPanel p = new JPanel();
-    p.setLayout(null);
+        JPanel p = new JPanel();
+        p.setLayout(null);
 
-    // Labels for book details
-    JLabel nameLabel = new JLabel("Name: " + bookName);
-    nameLabel.setBounds(50, 50, 400, 30);
-    p.add(nameLabel);
+        // Labels for book details
+        JLabel imageLabel = new JLabel();
+        imageLabel.setBounds(30, 70, 120, 170);
+        p.add(imageLabel);
+        
+        JLabel nameLabel = new JLabel("Name: " + bookName);
+        nameLabel.setBounds(30, 260, 400, 30);
+        nameLabel.setFont(new Font("Arial", Font.BOLD, 13));
+        p.add(nameLabel);
 
-    JLabel genreLabel = new JLabel("Genre: " + genre);
-    genreLabel.setBounds(50, 100, 400, 30);
-    p.add(genreLabel);
+        JLabel genreLabel = new JLabel("Genre: " + genre);
+        genreLabel.setBounds(30, 280, 400, 30);
+        genreLabel.setFont(new Font("Arial", Font.BOLD, 13));
+        p.add(genreLabel);
 
-    JLabel dateLabel = new JLabel("Date: ");
-    dateLabel.setBounds(50, 150, 400, 30);
-    p.add(dateLabel);
+        JLabel dateLabel = new JLabel("Date: ");
+        dateLabel.setBounds(30, 300, 400, 30);
+        dateLabel.setFont(new Font("Arial", Font.BOLD, 13));
+        p.add(dateLabel);
+        
+        JButton borrowButton = new JButton("Borrow");
+        borrowButton.setBounds(30, 330, 100, 25);
+        p.add(borrowButton);
+        
+        JLabel descriptHeaderLabel = new JLabel("Description");
+        descriptHeaderLabel.setBounds(200, 70, 400, 30);
+        descriptHeaderLabel.setFont(new Font("Arial", Font.BOLD, 15));
+        p.add(descriptHeaderLabel);
+        
+        JLabel descriptLabel = new JLabel();
+        descriptLabel.setBounds(200, 100, 280, 300);
+        descriptLabel.setVerticalAlignment(SwingConstants.TOP);
+        descriptLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        p.add(descriptLabel);
 
-    JLabel imageLabel = new JLabel();
-    imageLabel.setBounds(50, 200, 400, 300);
-    p.add(imageLabel);
+        // Fetch book details from database
+        String sql = "SELECT name, genre, date, description, image FROM books WHERE id = ?";
 
-    // Fetch book details from database
-    String sql = "SELECT name, genre, date, image FROM books WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-    try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
-         PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, bookId);
+            ResultSet rs = stmt.executeQuery();
 
-        stmt.setInt(1, bookId);
-        ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String name = rs.getString("name");
+                String bookGenre = rs.getString("genre");
+                Date date = rs.getDate("date");
+                String descript = rs.getString("description");
+                InputStream is = rs.getBinaryStream("image");
+                BufferedImage img = ImageIO.read(is);
 
-        if (rs.next()) {
-            String name = rs.getString("name");
-            String bookGenre = rs.getString("genre");
-            Date date = rs.getDate("date");
-            InputStream is = rs.getBinaryStream("image");
-            BufferedImage img = ImageIO.read(is);
+                // Update labels
+                nameLabel.setText("Name: " + name);
+                genreLabel.setText("Genre: " + bookGenre);
+                dateLabel.setText("Date: " + date.toString());
+                descriptLabel.setText("<html>" + descript + "</html>");
 
-            // Update labels
-            nameLabel.setText("Name: " + name);
-            genreLabel.setText("Genre: " + bookGenre);
-            dateLabel.setText("Date: " + date.toString());
-
-            // Set image
-            if (img != null) {
-                Image scaledImage = img.getScaledInstance(400, 300, Image.SCALE_SMOOTH);
-                imageLabel.setIcon(new ImageIcon(scaledImage));
-            } else {
-                imageLabel.setText("No Image Available");
+                // Set image
+                if (img != null) {
+                    Image scaledImage = img.getScaledInstance(120, 170, Image.SCALE_SMOOTH);
+                    imageLabel.setIcon(new ImageIcon(scaledImage));
+                } else {
+                    imageLabel.setText("No Image Available");
+                }
             }
+            rs.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        rs.close();
-    } catch (Exception e) {
-        e.printStackTrace();
+
+        // Back button to return to book list (p2 panel)
+        JButton backButton = new JButton("Back");
+        backButton.setBounds(10, 10, 100, 30);
+        backButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                mainPanel.remove(p2);    // Remove old p2 if exists
+                p2 = showBookList();         // Recreate p2 fresh
+                p2.setBounds(0, 0, 500, 500);
+                mainPanel.add(p2);
+
+                p.setVisible(false);
+                p2.setVisible(true);
+
+                mainPanel.revalidate();
+                mainPanel.repaint();    // Repaint the main panel to reflect changes
+            }
+        });
+        p.add(backButton);
+
+        return p;
     }
-
-    // Back button to return to book list (p2 panel)
-    JButton backButton = new JButton("Back");
-    backButton.setBounds(200, 10, 100, 30);
-    backButton.addActionListener(new ActionListener() {
-        public void actionPerformed(ActionEvent e) {
-            // Make the current detail panel invisible and show p2 (book list)
-            p.setVisible(false);  // Hide the detail panel (p)
-            p2.setVisible(true);   // Show the book list panel (p2)
-
-            mainPanel.revalidate();  // Revalidate the layout after panel changes
-            mainPanel.repaint();     // Repaint the main panel to reflect changes
-        }
-    });
-    p.add(backButton);
-
-    return p;
-}
     
     public void bookRegister(String name, String genre, String image) {
         try {

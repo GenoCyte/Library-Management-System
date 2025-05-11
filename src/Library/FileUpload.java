@@ -1,5 +1,6 @@
-package LibraryTest;
+package Library;
 
+import LibraryTest.*;
 import java.sql.*;
 import java.util.*;
 import java.sql.Connection;
@@ -30,8 +31,8 @@ public class FileUpload extends JFrame{
     String userName;
     int userID;
     
-    public FileUpload(String email){
-        this.storedEmail = email; // Now it's properly passed
+    public FileUpload(){
+       // this.storedEmail = email; // Now it's properly passed
         setSize(515,500);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -233,7 +234,7 @@ public class FileUpload extends JFrame{
         return p;
     }
     
-    private JPanel showBookList() {
+    public JPanel showBookList() {
         JPanel p = new JPanel(new BorderLayout());
         p.setPreferredSize(new Dimension(500, 500));
 

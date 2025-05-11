@@ -481,11 +481,9 @@ public class User extends javax.swing.JFrame {
         jLabel2 = new javax.swing.JLabel();
         jSeparator8 = new javax.swing.JSeparator();
         jButton4 = new javax.swing.JButton();
-        jButton7 = new javax.swing.JButton();
         jButton2 = new javax.swing.JButton();
         jButton6 = new javax.swing.JButton();
-        jButton5 = new javax.swing.JButton();
-        jButton12 = new javax.swing.JButton();
+        logoutButton = new javax.swing.JLabel();
         detailsPanel = new javax.swing.JPanel();
         tabbedPane = new javax.swing.JTabbedPane();
         homePanel = new javax.swing.JPanel();
@@ -698,18 +696,7 @@ public class User extends javax.swing.JFrame {
             }
         });
         topPanel.add(jButton4);
-        jButton4.setBounds(520, 30, 130, 50);
-
-        jButton7.setBackground(new java.awt.Color(0, 0, 0));
-        jButton7.setForeground(new java.awt.Color(255, 255, 255));
-        jButton7.setText("bell");
-        jButton7.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton7ActionPerformed(evt);
-            }
-        });
-        topPanel.add(jButton7);
-        jButton7.setBounds(1110, 30, 60, 50);
+        jButton4.setBounds(740, 30, 130, 50);
 
         jButton2.setBackground(new java.awt.Color(0, 0, 0));
         jButton2.setForeground(new java.awt.Color(255, 255, 255));
@@ -725,7 +712,7 @@ public class User extends javax.swing.JFrame {
             }
         });
         topPanel.add(jButton2);
-        jButton2.setBounds(390, 30, 130, 50);
+        jButton2.setBounds(610, 30, 130, 50);
 
         jButton6.setBackground(new java.awt.Color(0, 0, 0));
         jButton6.setForeground(new java.awt.Color(255, 255, 255));
@@ -736,29 +723,13 @@ public class User extends javax.swing.JFrame {
             }
         });
         topPanel.add(jButton6);
-        jButton6.setBounds(780, 30, 130, 50);
+        jButton6.setBounds(870, 30, 130, 50);
 
-        jButton5.setBackground(new java.awt.Color(0, 0, 0));
-        jButton5.setForeground(new java.awt.Color(255, 255, 255));
-        jButton5.setText("Borrow");
-        jButton5.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton5ActionPerformed(evt);
-            }
-        });
-        topPanel.add(jButton5);
-        jButton5.setBounds(650, 30, 130, 50);
-
-        jButton12.setBackground(new java.awt.Color(0, 0, 0));
-        jButton12.setForeground(new java.awt.Color(255, 255, 255));
-        jButton12.setText("Sign out");
-        jButton12.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton12ActionPerformed(evt);
-            }
-        });
-        topPanel.add(jButton12);
-        jButton12.setBounds(910, 30, 130, 50);
+        logoutButton.setIcon(new javax.swing.ImageIcon(getClass().getResource("/GuiTest/Pics/logout.png"))); // NOI18N
+        logoutButton.setMinimumSize(new java.awt.Dimension(50, 50));
+        logoutButton.setPreferredSize(new java.awt.Dimension(50, 50));
+        topPanel.add(logoutButton);
+        logoutButton.setBounds(1120, 35, 30, 40);
 
         mainPanel.add(topPanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 1190, 130));
 
@@ -874,24 +845,6 @@ public class User extends javax.swing.JFrame {
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
-    private void jButton5ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton5ActionPerformed
-tabbedPane.setSelectedIndex(2);      
-    }//GEN-LAST:event_jButton5ActionPerformed
-
-    private void jButton7ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton7ActionPerformed
-        String ObjButtons[] = {"Yes","No"};
-        int PromptResult = JOptionPane.showOptionDialog(null,
-            "Are you sure you want to Logout?", "Library Management System",
-            JOptionPane.DEFAULT_OPTION, JOptionPane.DEFAULT_OPTION, null,
-            ObjButtons,ObjButtons[1]);
-        if(PromptResult==0)
-        {
-            Login log = new Login();
-            log.setVisible(true);
-            dispose();
-        }
-    }//GEN-LAST:event_jButton7ActionPerformed
-
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
         tabbedPane.setSelectedIndex(1);
     }//GEN-LAST:event_jButton4ActionPerformed
@@ -942,10 +895,6 @@ tabbedPane.setSelectedIndex(2);
         }
     }//GEN-LAST:event_jButton11ActionPerformed
 
-    private void jButton12ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton12ActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_jButton12ActionPerformed
-
     /**
      * @param args the command line arguments
      */
@@ -992,13 +941,10 @@ tabbedPane.setSelectedIndex(2);
     private javax.swing.JButton jButton1;
     private javax.swing.JButton jButton10;
     private javax.swing.JButton jButton11;
-    private javax.swing.JButton jButton12;
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
     private javax.swing.JButton jButton4;
-    private javax.swing.JButton jButton5;
     private javax.swing.JButton jButton6;
-    private javax.swing.JButton jButton7;
     private javax.swing.JButton jButton8;
     private javax.swing.JButton jButton9;
     private javax.swing.JFrame jFrame1;
@@ -1024,6 +970,7 @@ tabbedPane.setSelectedIndex(2);
     private javax.swing.JSeparator jSeparator7;
     private javax.swing.JSeparator jSeparator8;
     private javax.swing.JTextArea jTextArea2;
+    private javax.swing.JLabel logoutButton;
     private javax.swing.JPanel mainPanel;
     private javax.swing.JPanel searchPanel;
     private javax.swing.JTabbedPane tabbedPane;

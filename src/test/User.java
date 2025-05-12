@@ -5,6 +5,7 @@
 package test;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -18,12 +19,16 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Time;
+import java.sql.Date;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -44,9 +49,15 @@ public class User extends javax.swing.JFrame {
     String dbUser = "root";
     String dbPass = "";
     JPanel showBookPanel;
+    JPanel showBorrowedPanel;
+    String storedEmail;
+    String userName;
+    int userID;
     
-    public User() {
+    public User(String email) {
+        this.storedEmail = email;
         initComponents();
+        getNamebyEmail(storedEmail);
         
         detailsPanel.setVisible(false);
         
@@ -64,6 +75,30 @@ public class User extends javax.swing.JFrame {
         searchPanel.setLayout(new BorderLayout());
         showBookPanel = showBookList();
         searchPanel.add(showBookPanel, BorderLayout.CENTER);
+        
+        borrowingsPanel.setLayout(new BorderLayout());
+        showBorrowedPanel = showBorrowedBooksPanel();
+        borrowingsPanel.add(showBorrowedPanel, BorderLayout.CENTER);
+    }
+    
+    public void getNamebyEmail(String email) {
+        userName = "";
+        String query = "SELECT id, name FROM user WHERE email = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setString(1, email);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    userID = rs.getInt("id");
+                    userName = rs.getString("name");
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        userNameLabel.setText("Hi! " + userName);
     }
     
     private void FeaturedBooks(JPanel featured){
@@ -351,7 +386,6 @@ public class User extends javax.swing.JFrame {
     private JPanel createBookDetailPanel(int bookId) {
         JPanel p = new JPanel();
         p.setLayout(null);
-        String bookName = "";
         String genre = "";
 
         JLabel imageLabel = new JLabel();
@@ -372,14 +406,6 @@ public class User extends javax.swing.JFrame {
         dateLabel.setBounds(400, 340, 400, 30);
         dateLabel.setFont(new Font("Arial", Font.BOLD, 15));
         p.add(dateLabel);
-        
-        JButton borrowButton = new JButton("Borrow");
-        borrowButton.setBounds(400, 380, 100, 25);
-        borrowButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                //bookBorrow(bookId);
-            }});
-        p.add(borrowButton);
         
         JLabel descriptHeaderLabel = new JLabel("Description");
         descriptHeaderLabel.setBounds(700, 60, 400, 30);
@@ -403,7 +429,7 @@ public class User extends javax.swing.JFrame {
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                bookName = rs.getString("name");
+                String bookName = rs.getString("name");
                 genre = rs.getString("genre");
                 Date date = rs.getDate("date");
                 String descript = rs.getString("description");
@@ -423,6 +449,14 @@ public class User extends javax.swing.JFrame {
                 } else {
                     imageLabel.setText("No Image Available");
                 }
+                
+                JButton borrowButton = new JButton("Borrow");
+                borrowButton.setBounds(400, 380, 100, 25);
+                borrowButton.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        insertPendingBorrow(userID, userName, bookId, bookName);
+                    }});
+                p.add(borrowButton);
             }
             rs.close();
         } catch (Exception e) {
@@ -445,7 +479,176 @@ public class User extends javax.swing.JFrame {
 
         return p;
     }
+    
+    private JPanel showBorrowedBooksPanel() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setPreferredSize(new Dimension(1190, 575));
 
+        // Top title panel
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setPreferredSize(new Dimension(1190, 80));
+        
+        JLabel l1 = new JLabel("Borrowed Books");
+        l1.setBounds(50, 15, 200, 30);
+        l1.setFont(new Font("Arial", Font.PLAIN, 26));
+        p.add(l1);
+        
+        ImageIcon originalIcon = new ImageIcon("GuiTest/Pics/refresh-arrow.png");
+        Image scaledIcon = originalIcon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+        JLabel l2 = new JLabel();
+        l2.setBounds(1000, 15, 200, 30);
+        l2.setFont(new Font("Arial", Font.PLAIN, 26));
+        l2.setIcon(new ImageIcon(scaledIcon));
+        p.add(l2);
+
+        // Content panel
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 150, 10, 150)); // spacing on left & right
+
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setBorder(null);
+
+        String sql = "SELECT bb.book_id, b.name, b.genre, b.image, bb.date_borrowed, bb.deadline " +
+                 "FROM borrowed_books bb " +
+                 "JOIN books b ON bb.book_id = b.id " +
+                 "WHERE bb.user_id = ?"; // ✅ Correct SQL placement
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+            PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setInt(1, userID);
+        ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                String name = rs.getString("name");
+                String genre = rs.getString("genre");
+                String dateBorrowed = rs.getString("date_borrowed");
+                String deadline = rs.getString("deadline");
+                int bookId = rs.getInt("book_id");
+
+                // Load book image
+                BufferedImage img = null;
+                InputStream is = rs.getBinaryStream("image");
+                if (is != null) img = ImageIO.read(is);
+
+                ImageIcon icon = null;
+                if (img != null) {
+                    Image scaledImage = img.getScaledInstance(120, 160, Image.SCALE_SMOOTH);
+                    icon = new ImageIcon(scaledImage);
+                }
+
+                // Row panel as card
+                JPanel rowPanel = new JPanel(new BorderLayout(15, 0));
+                rowPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
+                    BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                ));
+                rowPanel.setBackground(Color.WHITE);
+                rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
+                rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+                // Image
+                JLabel imageLabel = new JLabel();
+                imageLabel.setPreferredSize(new Dimension(120, 160));
+                if (icon != null) {
+                    imageLabel.setIcon(icon);
+                } else {
+                    imageLabel.setText("No Image");
+                    imageLabel.setHorizontalAlignment(JLabel.CENTER);
+                    imageLabel.setVerticalAlignment(JLabel.CENTER);
+                }
+                rowPanel.add(imageLabel, BorderLayout.WEST);
+
+                // Info section
+                JPanel infoPanel = new JPanel();
+                infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+                infoPanel.setOpaque(false);
+
+                Font font = new Font("Arial", Font.PLAIN, 14);
+                
+                JLabel nameLabel = new JLabel(name);
+                nameLabel.setFont(new Font("Arial", Font.BOLD, 20));
+
+                JLabel genreLabel = new JLabel("Genre: " + genre);
+                genreLabel.setFont(font);
+
+                JLabel borrowedLabel = new JLabel("Borrowed: " + dateBorrowed);
+                borrowedLabel.setFont(font);
+
+                JLabel deadlineLabel = new JLabel("Deadline: " + deadline);
+                deadlineLabel.setFont(font);
+                
+                JLabel penaltyLabel = new JLabel("Penalty: " + 0);
+                penaltyLabel.setFont(font);
+
+                JButton returnButton = new JButton("Return Book");
+                returnButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+                returnButton.addActionListener(e -> {
+                    // Return logic placeholder
+                    System.out.println("Returning book ID: " + bookId);
+                });
+
+                infoPanel.add(nameLabel);
+                infoPanel.add(Box.createVerticalStrut(5));
+                infoPanel.add(genreLabel);
+                infoPanel.add(Box.createVerticalStrut(5));
+                infoPanel.add(borrowedLabel);
+                infoPanel.add(Box.createVerticalStrut(5));
+                infoPanel.add(deadlineLabel);
+                infoPanel.add(Box.createVerticalStrut(5));
+                infoPanel.add(penaltyLabel);
+                infoPanel.add(Box.createVerticalStrut(10));
+                infoPanel.add(returnButton);
+
+                rowPanel.add(infoPanel, BorderLayout.CENTER);
+
+                contentPanel.add(rowPanel);
+                contentPanel.add(Box.createVerticalStrut(15)); // space between rows
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        p.add(topPanel, BorderLayout.NORTH);
+        p.add(scrollPane, BorderLayout.CENTER);
+        return p;
+    }
+    
+    public void insertPendingBorrow(int userId, String userName, int bookId, String bookName) {
+        String sql = "INSERT INTO pending_borrows (user_id, user_name, book_id, book_name, time, date) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            LocalTime currentTime = LocalTime.now();
+            LocalDate currentDate = LocalDate.now();
+
+            stmt.setInt(1, userId);
+            stmt.setString(2, userName);
+            stmt.setInt(3, bookId);
+            stmt.setString(4, bookName);
+            stmt.setTime(5, Time.valueOf(currentTime));
+            stmt.setDate(6, Date.valueOf(currentDate));
+
+            int rows = stmt.executeUpdate();
+
+            if (rows > 0) {
+                JOptionPane.showMessageDialog(mainPanel, "Successfully reserve the book. Please Proceed to the Library Counter");
+            } else {
+                System.out.println("Failed to insert record.");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    
+    
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -483,21 +686,18 @@ public class User extends javax.swing.JFrame {
         jButton4 = new javax.swing.JButton();
         jButton2 = new javax.swing.JButton();
         jButton6 = new javax.swing.JButton();
-        logoutButton = new javax.swing.JLabel();
+        exitButton = new javax.swing.JLabel();
+        notifButton = new javax.swing.JLabel();
+        jLabel8 = new javax.swing.JLabel();
         detailsPanel = new javax.swing.JPanel();
         tabbedPane = new javax.swing.JTabbedPane();
         homePanel = new javax.swing.JPanel();
-        jLabel9 = new javax.swing.JLabel();
+        userNameLabel = new javax.swing.JLabel();
         jSeparator6 = new javax.swing.JSeparator();
         featuredBooks = new javax.swing.JPanel();
         jLabel10 = new javax.swing.JLabel();
         searchPanel = new javax.swing.JPanel();
-        borrowPanel = new javax.swing.JPanel();
-        jLabel22 = new javax.swing.JLabel();
-        jScrollPane2 = new javax.swing.JScrollPane();
-        jTextArea2 = new javax.swing.JTextArea();
         borrowingsPanel = new javax.swing.JPanel();
-        jLabel24 = new javax.swing.JLabel();
 
         jSeparator3.setBackground(new java.awt.Color(0, 0, 0));
         jSeparator3.setForeground(new java.awt.Color(0, 0, 0));
@@ -725,11 +925,18 @@ public class User extends javax.swing.JFrame {
         topPanel.add(jButton6);
         jButton6.setBounds(870, 30, 130, 50);
 
-        logoutButton.setIcon(new javax.swing.ImageIcon(getClass().getResource("/GuiTest/Pics/logout.png"))); // NOI18N
-        logoutButton.setMinimumSize(new java.awt.Dimension(50, 50));
-        logoutButton.setPreferredSize(new java.awt.Dimension(50, 50));
-        topPanel.add(logoutButton);
-        logoutButton.setBounds(1120, 35, 30, 40);
+        exitButton.setIcon(new javax.swing.ImageIcon(getClass().getResource("/GuiTest/Pics/logout.png"))); // NOI18N
+        topPanel.add(exitButton);
+        exitButton.setBounds(1110, 40, 30, 30);
+
+        notifButton.setIcon(new javax.swing.ImageIcon(getClass().getResource("/GuiTest/Pics/notification.png"))); // NOI18N
+        topPanel.add(notifButton);
+        notifButton.setBounds(1040, 40, 30, 30);
+
+        jLabel8.setFont(new java.awt.Font("Segoe UI Black", 1, 36)); // NOI18N
+        jLabel8.setText("SRMLIB");
+        topPanel.add(jLabel8);
+        jLabel8.setBounds(80, 10, 146, 50);
 
         mainPanel.add(topPanel, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 1190, 130));
 
@@ -748,9 +955,9 @@ public class User extends javax.swing.JFrame {
 
         homePanel.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
-        jLabel9.setFont(new java.awt.Font("Segoe UI Black", 1, 48)); // NOI18N
-        jLabel9.setText("HI! Renz!");
-        homePanel.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 0, -1, -1));
+        userNameLabel.setFont(new java.awt.Font("Segoe UI Black", 1, 48)); // NOI18N
+        userNameLabel.setText("HI! Renz!");
+        homePanel.add(userNameLabel, new org.netbeans.lib.awtextra.AbsoluteConstraints(30, 0, -1, -1));
 
         jSeparator6.setBackground(new java.awt.Color(0, 0, 0));
         jSeparator6.setForeground(new java.awt.Color(0, 0, 0));
@@ -777,53 +984,15 @@ public class User extends javax.swing.JFrame {
 
         tabbedPane.addTab("tab2", searchPanel);
 
-        jTextArea2.setColumns(20);
-        jTextArea2.setRows(5);
-        jTextArea2.setText("Lorem ipsum dolor sit amet, consectetur adipiscing elit.\n Etiam vestibulum quam eu ante rutrum porttitor in eu sem.\n Nam odio massa, vehicula vitae eros ut, efficitur vulputate justo. \nNulla fermentum, mauris in eleifend tempor, mi urna efficitur\n eros, at sagittis leo purus vitae nibh. Mauris lacinia enim a tellus\n semper varius. Quisque malesuada sagittis enim nec tempus. \nCras ut diam diam. In in feugiat quam. Curabitur nec faucibus \nsem. Curabitur varius vitae ex at sodales. Vestibulum ante ipsum\n primis in faucibus orci luctus et ultrices posuere cubilia curae\n; Sed cursus diam ut ornare pretium. Donec dignissim sit amet \nnisl a eleifend. Fusce lacinia ut felis ut interdum. Integer non erat\n blandit, commodo erat vitae, luctus diam. Nulla lacinia est sit\n amet lectus sollicitudin blandit. Donec vestibulum est rhoncus\n tellus interdum, vitae pellentesque libero tincidunt.");
-        jScrollPane2.setViewportView(jTextArea2);
-
-        javax.swing.GroupLayout borrowPanelLayout = new javax.swing.GroupLayout(borrowPanel);
-        borrowPanel.setLayout(borrowPanelLayout);
-        borrowPanelLayout.setHorizontalGroup(
-            borrowPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(borrowPanelLayout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jLabel22, javax.swing.GroupLayout.PREFERRED_SIZE, 343, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(37, 37, 37)
-                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 352, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(452, Short.MAX_VALUE))
-        );
-        borrowPanelLayout.setVerticalGroup(
-            borrowPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(borrowPanelLayout.createSequentialGroup()
-                .addGroup(borrowPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel22, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addGroup(borrowPanelLayout.createSequentialGroup()
-                        .addGap(47, 47, 47)
-                        .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 522, Short.MAX_VALUE)))
-                .addContainerGap())
-        );
-
-        tabbedPane.addTab("tab3", borrowPanel);
-
-        jLabel24.setFont(new java.awt.Font("Segoe UI", 0, 48)); // NOI18N
-        jLabel24.setText("My Borrowing");
-
         javax.swing.GroupLayout borrowingsPanelLayout = new javax.swing.GroupLayout(borrowingsPanel);
         borrowingsPanel.setLayout(borrowingsPanelLayout);
         borrowingsPanelLayout.setHorizontalGroup(
             borrowingsPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(borrowingsPanelLayout.createSequentialGroup()
-                .addGap(309, 309, 309)
-                .addComponent(jLabel24, javax.swing.GroupLayout.PREFERRED_SIZE, 369, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(512, Short.MAX_VALUE))
+            .addGap(0, 1190, Short.MAX_VALUE)
         );
         borrowingsPanelLayout.setVerticalGroup(
             borrowingsPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(borrowingsPanelLayout.createSequentialGroup()
-                .addGap(185, 185, 185)
-                .addComponent(jLabel24, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(261, Short.MAX_VALUE))
+            .addGap(0, 575, Short.MAX_VALUE)
         );
 
         tabbedPane.addTab("tab4", borrowingsPanel);
@@ -858,7 +1027,7 @@ public class User extends javax.swing.JFrame {
     }//GEN-LAST:event_jButton2MouseClicked
 
     private void jButton6ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton6ActionPerformed
-        tabbedPane.setSelectedIndex(3);
+        tabbedPane.setSelectedIndex(2);
     }//GEN-LAST:event_jButton6ActionPerformed
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
@@ -926,16 +1095,15 @@ public class User extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
-                new User().setVisible(true);
             }
         });
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JPanel borrowPanel;
     private javax.swing.JPanel borrowingsPanel;
     private java.awt.Canvas canvas1;
     private javax.swing.JPanel detailsPanel;
+    private javax.swing.JLabel exitButton;
     private javax.swing.JPanel featuredBooks;
     private javax.swing.JPanel homePanel;
     private javax.swing.JButton jButton1;
@@ -954,26 +1122,23 @@ public class User extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel15;
     private javax.swing.JLabel jLabel16;
     private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel22;
-    private javax.swing.JLabel jLabel24;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
-    private javax.swing.JLabel jLabel9;
-    private javax.swing.JScrollPane jScrollPane2;
+    private javax.swing.JLabel jLabel8;
     private javax.swing.JSeparator jSeparator3;
     private javax.swing.JSeparator jSeparator4;
     private javax.swing.JSeparator jSeparator5;
     private javax.swing.JSeparator jSeparator6;
     private javax.swing.JSeparator jSeparator7;
     private javax.swing.JSeparator jSeparator8;
-    private javax.swing.JTextArea jTextArea2;
-    private javax.swing.JLabel logoutButton;
     private javax.swing.JPanel mainPanel;
+    private javax.swing.JLabel notifButton;
     private javax.swing.JPanel searchPanel;
     private javax.swing.JTabbedPane tabbedPane;
     private javax.swing.JPanel topPanel;
+    private javax.swing.JLabel userNameLabel;
     // End of variables declaration//GEN-END:variables
 }

@@ -45,6 +45,7 @@ public class AdminUI extends javax.swing.JFrame {
     String dbUser = "root";
     String dbPass = "";
     JPanel showPendingPanel;
+    JPanel showBorrowedPanel;
 
     public AdminUI() {
         initComponents();
@@ -52,6 +53,10 @@ public class AdminUI extends javax.swing.JFrame {
         pendingPanel.setLayout(new BorderLayout());
         showPendingPanel = showPendingBorrows();
         pendingPanel.add(showPendingPanel, BorderLayout.CENTER);
+        
+        borrowedPanel.setLayout(new BorderLayout());
+        showBorrowedPanel = showBorrowedBooks();
+        borrowedPanel.add(showBorrowedPanel, BorderLayout.CENTER);
     }
     
     private JPanel showPendingBorrows() {
@@ -126,6 +131,14 @@ public class AdminUI extends javax.swing.JFrame {
 
                     insertStmt.executeUpdate();
                 }
+                
+                try (PreparedStatement updateStmt = conn.prepareStatement(
+                        "UPDATE books SET status = 1 WHERE id = ?")) {
+
+                    updateStmt.setInt(1, bookId);
+
+                    updateStmt.executeUpdate();
+                }
 
                 // Delete from pending_borrows
                 try (PreparedStatement deleteStmt = conn.prepareStatement(
@@ -157,6 +170,118 @@ public class AdminUI extends javax.swing.JFrame {
                     rs.getString("book_name"),
                     rs.getTime("time").toString(),
                     rs.getDate("date").toString()
+                });
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(p, "Database error: " + ex.getMessage());
+        }
+
+        // Final panel assembly
+        p.add(topPanel, BorderLayout.NORTH);
+        p.add(scrollPane, BorderLayout.CENTER);
+        p.add(buttonPanel, BorderLayout.SOUTH);
+
+        return p;
+    }
+    
+    private JPanel showBorrowedBooks() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setPreferredSize(new Dimension(1190, 575));
+
+        // Title panel
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topPanel.setPreferredSize(new Dimension(1190, 80));
+        JLabel l1 = new JLabel("Borrowed Books");
+        l1.setFont(new Font("Arial", Font.PLAIN, 26));
+        topPanel.add(l1);
+
+        // Table with model
+        DefaultTableModel model = new DefaultTableModel(new Object[]{"User ID", "User Name", "Book ID", "Book Name", "Date", "Deadline", "Penalty"}, 0);
+        JTable table = new JTable(model);
+        table.setRowHeight(30);
+        table.setFont(new Font("Arial", Font.PLAIN, 16));
+        table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 16));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        // Confirm button
+        JButton confirmButton = new JButton("Confirm Returned Books");
+        confirmButton.setFont(new Font("Arial", Font.BOLD, 18));
+        confirmButton.setPreferredSize(new Dimension(250, 50));
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(confirmButton);
+
+        confirmButton.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) {
+                JOptionPane.showMessageDialog(p, "Please select a row.");
+                return;
+            }
+
+            int userId = Integer.parseInt(model.getValueAt(row, 0).toString());
+            String userName = model.getValueAt(row, 1).toString();
+            int bookId = Integer.parseInt(model.getValueAt(row, 2).toString());
+            String bookName = model.getValueAt(row, 3).toString();
+
+            LocalDate currentDate = LocalDate.now();
+            LocalDate deadline = currentDate.plusWeeks(1);
+
+            try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass)) {
+                // Get genre from books
+                String genre = "";
+                try (PreparedStatement stmtGenre = conn.prepareStatement("SELECT genre FROM books WHERE id = ?")) {
+                    stmtGenre.setInt(1, bookId);
+                    ResultSet rs = stmtGenre.executeQuery();
+                    if (rs.next()) {
+                        genre = rs.getString("genre");
+                    }
+                    rs.close();
+                }
+                
+                try (PreparedStatement updateStmt = conn.prepareStatement(
+                        "UPDATE books SET status = 0 WHERE id = ?")) {
+
+                    updateStmt.setInt(1, bookId);
+
+                    updateStmt.executeUpdate();
+                }
+
+                // Delete from pending_borrows
+                try (PreparedStatement deleteStmt = conn.prepareStatement(
+                        "DELETE FROM borrowed_books WHERE user_id = ? AND book_id = ? LIMIT 1")) {
+                    deleteStmt.setInt(1, userId);
+                    deleteStmt.setInt(2, bookId);
+                    deleteStmt.executeUpdate();
+                }
+
+                model.removeRow(row);
+                JOptionPane.showMessageDialog(p, "Successfull Return of Book for " + userName + " - " + bookName);
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                JOptionPane.showMessageDialog(p, "Error updating database: " + ex.getMessage());
+            }
+        });
+
+        // Load data into the table
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement("SELECT user_id, user_name, book_id, book_name, date_borrowed, deadline, penalty FROM borrowed_books");
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt("user_id"),
+                    rs.getString("user_name"),
+                    rs.getInt("book_id"),
+                    rs.getString("book_name"),
+                    rs.getDate("date_borrowed").toString(),
+                    rs.getDate("deadline").toString(),
+                    rs.getInt("penalty")
                 });
             }
 

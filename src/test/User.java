@@ -7,6 +7,7 @@ package test;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -53,9 +54,10 @@ public class User extends javax.swing.JFrame {
     String storedEmail;
     String userName;
     int userID;
+    private javax.swing.JLabel refresh;
     
-    public User(String email) {
-        this.storedEmail = email;
+    public User() {
+        this.storedEmail = "garabi@gmail.com";
         initComponents();
         getNamebyEmail(storedEmail);
         
@@ -164,7 +166,6 @@ public class User extends javax.swing.JFrame {
     private JPanel createHomeBookDetailPanel(int bookId) {
         JPanel p = new JPanel();
         p.setLayout(null);
-        String bookName = "";
         String genre = "";
 
         // Labels for book details
@@ -186,14 +187,6 @@ public class User extends javax.swing.JFrame {
         dateLabel.setBounds(400, 340, 400, 30);
         dateLabel.setFont(new Font("Arial", Font.BOLD, 15));
         p.add(dateLabel);
-        
-        JButton borrowButton = new JButton("Borrow");
-        borrowButton.setBounds(400, 380, 100, 25);
-        borrowButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                //bookBorrow(bookId);
-            }});
-        p.add(borrowButton);
         
         JLabel descriptHeaderLabel = new JLabel("Description");
         descriptHeaderLabel.setBounds(700, 60, 400, 30);
@@ -217,7 +210,7 @@ public class User extends javax.swing.JFrame {
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                bookName = rs.getString("name");
+                String bookName = rs.getString("name");
                 genre = rs.getString("genre");
                 Date date = rs.getDate("date");
                 String descript = rs.getString("description");
@@ -237,6 +230,14 @@ public class User extends javax.swing.JFrame {
                 } else {
                     imageLabel.setText("No Image Available");
                 }
+                
+                JButton borrowButton = new JButton("Borrow");
+                borrowButton.setBounds(400, 380, 100, 25);
+                borrowButton.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        insertPendingBorrow(userID, userName, bookId, bookName);
+                    }});
+                p.add(borrowButton);
             }
             rs.close();
         } catch (Exception e) {
@@ -420,7 +421,7 @@ public class User extends javax.swing.JFrame {
         p.add(descriptLabel);
 
         // Fetch book details from database
-        String sql = "SELECT name, genre, date, description, image FROM books WHERE id = ?";
+        String sql = "SELECT name, genre, date, description, image, status FROM books WHERE id = ?";
 
         try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -435,6 +436,7 @@ public class User extends javax.swing.JFrame {
                 String descript = rs.getString("description");
                 InputStream is = rs.getBinaryStream("image");
                 BufferedImage img = ImageIO.read(is);
+                int status = rs.getInt("status");
 
                 // Update labels
                 nameLabel.setText("Name: " + bookName);
@@ -457,6 +459,11 @@ public class User extends javax.swing.JFrame {
                         insertPendingBorrow(userID, userName, bookId, bookName);
                     }});
                 p.add(borrowButton);
+                
+                if(status == 1){
+                    borrowButton.setEnabled(false);
+                    borrowButton.setText("Unavailable");
+                }
             }
             rs.close();
         } catch (Exception e) {
@@ -484,8 +491,7 @@ public class User extends javax.swing.JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setPreferredSize(new Dimension(1190, 575));
 
-        // Top title panel
-        JPanel topPanel = new JPanel(new BorderLayout());
+         JPanel topPanel = new JPanel(new BorderLayout());
         topPanel.setPreferredSize(new Dimension(1190, 80));
         
         JLabel l1 = new JLabel("Borrowed Books");
@@ -493,13 +499,21 @@ public class User extends javax.swing.JFrame {
         l1.setFont(new Font("Arial", Font.PLAIN, 26));
         p.add(l1);
         
-        ImageIcon originalIcon = new ImageIcon("GuiTest/Pics/refresh-arrow.png");
-        Image scaledIcon = originalIcon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-        JLabel l2 = new JLabel();
-        l2.setBounds(1000, 15, 200, 30);
-        l2.setFont(new Font("Arial", Font.PLAIN, 26));
-        l2.setIcon(new ImageIcon(scaledIcon));
-        p.add(l2);
+        refresh = new javax.swing.JLabel();
+
+        refresh.setIcon(new javax.swing.ImageIcon(getClass().getResource("/GuiTest/Pics/refresh-arrow.png")));
+        refresh.setBounds(1080, 15, 30, 30);
+        p.add(refresh);
+        
+        refresh.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        refresh.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                borrowingsPanel.revalidate();
+                borrowingsPanel.repaint();
+            }
+        });
+
 
         // Content panel
         JPanel contentPanel = new JPanel();
@@ -511,16 +525,37 @@ public class User extends javax.swing.JFrame {
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         scrollPane.setBorder(null);
 
+        refresh.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                contentPanel.removeAll(); // clear old entries
+                loadBorrowedBooks(contentPanel); // reload
+                contentPanel.revalidate();
+                contentPanel.repaint();
+            }
+        });
+
+        // Load initial data
+        loadBorrowedBooks(contentPanel);
+
+        // Final panel assembly
+        p.add(topPanel, BorderLayout.NORTH);
+        p.add(scrollPane, BorderLayout.CENTER);
+
+        return p;
+    }
+    
+    private void loadBorrowedBooks(JPanel contentPanel) {
         String sql = "SELECT bb.book_id, b.name, b.genre, b.image, bb.date_borrowed, bb.deadline " +
-                 "FROM borrowed_books bb " +
-                 "JOIN books b ON bb.book_id = b.id " +
-                 "WHERE bb.user_id = ?"; // ✅ Correct SQL placement
+                     "FROM borrowed_books bb " +
+                     "JOIN books b ON bb.book_id = b.id " +
+                     "WHERE bb.user_id = ?";
 
         try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
-            PreparedStatement stmt = conn.prepareStatement(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        stmt.setInt(1, userID);
-        ResultSet rs = stmt.executeQuery();
+            stmt.setInt(1, userID);
+            ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
                 String name = rs.getString("name");
@@ -529,7 +564,6 @@ public class User extends javax.swing.JFrame {
                 String deadline = rs.getString("deadline");
                 int bookId = rs.getInt("book_id");
 
-                // Load book image
                 BufferedImage img = null;
                 InputStream is = rs.getBinaryStream("image");
                 if (is != null) img = ImageIO.read(is);
@@ -540,7 +574,6 @@ public class User extends javax.swing.JFrame {
                     icon = new ImageIcon(scaledImage);
                 }
 
-                // Row panel as card
                 JPanel rowPanel = new JPanel(new BorderLayout(15, 0));
                 rowPanel.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
@@ -548,9 +581,7 @@ public class User extends javax.swing.JFrame {
                 ));
                 rowPanel.setBackground(Color.WHITE);
                 rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
-                rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-                // Image
                 JLabel imageLabel = new JLabel();
                 imageLabel.setPreferredSize(new Dimension(120, 160));
                 if (icon != null) {
@@ -558,37 +589,29 @@ public class User extends javax.swing.JFrame {
                 } else {
                     imageLabel.setText("No Image");
                     imageLabel.setHorizontalAlignment(JLabel.CENTER);
-                    imageLabel.setVerticalAlignment(JLabel.CENTER);
                 }
                 rowPanel.add(imageLabel, BorderLayout.WEST);
 
-                // Info section
                 JPanel infoPanel = new JPanel();
                 infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
                 infoPanel.setOpaque(false);
-
                 Font font = new Font("Arial", Font.PLAIN, 14);
-                
+
                 JLabel nameLabel = new JLabel(name);
                 nameLabel.setFont(new Font("Arial", Font.BOLD, 20));
-
                 JLabel genreLabel = new JLabel("Genre: " + genre);
                 genreLabel.setFont(font);
-
                 JLabel borrowedLabel = new JLabel("Borrowed: " + dateBorrowed);
                 borrowedLabel.setFont(font);
-
                 JLabel deadlineLabel = new JLabel("Deadline: " + deadline);
                 deadlineLabel.setFont(font);
-                
                 JLabel penaltyLabel = new JLabel("Penalty: " + 0);
                 penaltyLabel.setFont(font);
 
                 JButton returnButton = new JButton("Return Book");
-                returnButton.setAlignmentX(Component.LEFT_ALIGNMENT);
                 returnButton.addActionListener(e -> {
-                    // Return logic placeholder
                     System.out.println("Returning book ID: " + bookId);
+                    // Add return logic
                 });
 
                 infoPanel.add(nameLabel);
@@ -606,16 +629,13 @@ public class User extends javax.swing.JFrame {
                 rowPanel.add(infoPanel, BorderLayout.CENTER);
 
                 contentPanel.add(rowPanel);
-                contentPanel.add(Box.createVerticalStrut(15)); // space between rows
+                contentPanel.add(Box.createVerticalStrut(15));
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(contentPanel, "Failed to load borrowed books: " + ex.getMessage());
         }
-
-        p.add(topPanel, BorderLayout.NORTH);
-        p.add(scrollPane, BorderLayout.CENTER);
-        return p;
     }
     
     public void insertPendingBorrow(int userId, String userName, int bookId, String bookName) {
@@ -1095,6 +1115,7 @@ public class User extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
+                new User().setVisible(true);
             }
         });
     }

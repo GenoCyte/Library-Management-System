@@ -81,6 +81,23 @@ public class User extends javax.swing.JFrame {
         borrowingsPanel.setLayout(new BorderLayout());
         showBorrowedPanel = showBorrowedBooksPanel();
         borrowingsPanel.add(showBorrowedPanel, BorderLayout.CENTER);
+        
+        exitButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        exitButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                String ObjButtons[] = {"Yes","No"};
+                int PromptResult = JOptionPane.showOptionDialog(null,
+                    "Are you sure you want to exit?", "Library Management System",
+                    JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null,
+                    ObjButtons,ObjButtons[1]);
+                if(PromptResult==0)
+                {
+                    new test.Login().setVisible(true);
+                    setVisible(false);
+                }
+            }
+        });
     }
     
     public void getNamebyEmail(String email) {
@@ -546,7 +563,7 @@ public class User extends javax.swing.JFrame {
     }
     
     private void loadBorrowedBooks(JPanel contentPanel) {
-        String sql = "SELECT bb.book_id, b.name, b.genre, b.image, bb.date_borrowed, bb.deadline " +
+        String sql = "SELECT bb.book_id, b.name, b.genre, b.image, bb.date_borrowed, bb.deadline, bb.penalty " +
                      "FROM borrowed_books bb " +
                      "JOIN books b ON bb.book_id = b.id " +
                      "WHERE bb.user_id = ?";
@@ -563,6 +580,7 @@ public class User extends javax.swing.JFrame {
                 String dateBorrowed = rs.getString("date_borrowed");
                 String deadline = rs.getString("deadline");
                 int bookId = rs.getInt("book_id");
+                int penalty = rs.getInt("penalty");
 
                 BufferedImage img = null;
                 InputStream is = rs.getBinaryStream("image");
@@ -605,7 +623,10 @@ public class User extends javax.swing.JFrame {
                 borrowedLabel.setFont(font);
                 JLabel deadlineLabel = new JLabel("Deadline: " + deadline);
                 deadlineLabel.setFont(font);
-                JLabel penaltyLabel = new JLabel("Penalty: " + 0);
+                JLabel penaltyLabel = new JLabel("Penalty: ₱" + penalty);
+                if(penalty != 0){
+                    penaltyLabel.setForeground(Color.red);
+                }
                 penaltyLabel.setFont(font);
 
                 JButton returnButton = new JButton("Return Book");

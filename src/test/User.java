@@ -56,8 +56,8 @@ public class User extends javax.swing.JFrame {
     int userID;
     private javax.swing.JLabel refresh;
     
-    public User() {
-        this.storedEmail = "garabi@gmail.com";
+    public User(String email) {
+        this.storedEmail = email;
         initComponents();
         getNamebyEmail(storedEmail);
         
@@ -1115,7 +1115,6 @@ public class User extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
-                new User().setVisible(true);
             }
         });
     }

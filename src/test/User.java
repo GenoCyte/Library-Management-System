@@ -31,6 +31,7 @@ import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.GroupLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -38,6 +39,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
@@ -181,89 +183,56 @@ public class User extends javax.swing.JFrame {
     }
     
     private JPanel createHomeBookDetailPanel(int bookId) {
-        JPanel p = new JPanel();
-        p.setLayout(null);
-        String genre = "";
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(Color.WHITE);
 
-        // Labels for book details
+        JPanel contentPanel = new JPanel();
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+
+        GroupLayout layout = new GroupLayout(contentPanel);
+        contentPanel.setLayout(layout);
+        layout.setAutoCreateGaps(true);
+        layout.setAutoCreateContainerGaps(true);
+
         JLabel imageLabel = new JLabel();
-        imageLabel.setBounds(400, 50, 160, 220);
-        p.add(imageLabel);
-        
-        JLabel nameLabel = new JLabel("Name: ");
-        nameLabel.setBounds(400, 280, 400, 30);
-        nameLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        p.add(nameLabel);
+        imageLabel.setPreferredSize(new Dimension(160, 220));
+        imageLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
-        JLabel genreLabel = new JLabel("Genre: ");
-        genreLabel.setBounds(400, 310, 400, 30);
-        genreLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        p.add(genreLabel);
+        JTextArea nameArea = new JTextArea();
+        nameArea.setFont(new Font("Arial", Font.BOLD, 18));
+        nameArea.setWrapStyleWord(true);
+        nameArea.setLineWrap(true);
+        nameArea.setEditable(false);
+        nameArea.setOpaque(false);
+        nameArea.setMaximumSize(new Dimension(400, 60));
 
-        JLabel dateLabel = new JLabel("Date: ");
-        dateLabel.setBounds(400, 340, 400, 30);
-        dateLabel.setFont(new Font("Arial", Font.BOLD, 15));
-        p.add(dateLabel);
-        
-        JLabel descriptHeaderLabel = new JLabel("Description");
-        descriptHeaderLabel.setBounds(700, 60, 400, 30);
-        descriptHeaderLabel.setFont(new Font("Arial", Font.BOLD, 20));
-        p.add(descriptHeaderLabel);
-        
-        JLabel descriptLabel = new JLabel();
-        descriptLabel.setBounds(700, 100, 280, 300);
-        descriptLabel.setVerticalAlignment(SwingConstants.TOP);
-        descriptLabel.setHorizontalAlignment(SwingConstants.LEFT);
-        descriptLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-        p.add(descriptLabel);
+        JLabel authorLabel = new JLabel();
+        authorLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
-        // Fetch book details from database
-        String sql = "SELECT name, genre, date, description, image FROM books WHERE id = ?";
+        JLabel genreLabel = new JLabel();
+        genreLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
-        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        JLabel dateLabel = new JLabel();
+        dateLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
-            stmt.setInt(1, bookId);
-            ResultSet rs = stmt.executeQuery();
+        JLabel descriptionTitle = new JLabel("Description:");
+        descriptionTitle.setFont(new Font("Arial", Font.BOLD, 18));
 
-            if (rs.next()) {
-                String bookName = rs.getString("name");
-                genre = rs.getString("genre");
-                Date date = rs.getDate("date");
-                String descript = rs.getString("description");
-                InputStream is = rs.getBinaryStream("image");
-                BufferedImage img = ImageIO.read(is);
+        JTextArea descriptionArea = new JTextArea();
+        descriptionArea.setFont(new Font("Arial", Font.PLAIN, 15));
+        descriptionArea.setLineWrap(true);
+        descriptionArea.setWrapStyleWord(true);
+        descriptionArea.setEditable(false);
+        JScrollPane descriptionScroll = new JScrollPane(descriptionArea);
+        descriptionScroll.setPreferredSize(new Dimension(300, 150));
+        descriptionScroll.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
-                // Update labels
-                nameLabel.setText("Name: " + bookName);
-                genreLabel.setText("Genre: " + genre);
-                dateLabel.setText("Date: " + date.toString());
-                descriptLabel.setText("<html>" + descript + "</html>");
+        JButton borrowButton = new JButton("Borrow");
+        borrowButton.setFont(new Font("Arial", Font.BOLD, 14));
 
-                // Set image
-                if (img != null) {
-                    Image scaledImage = img.getScaledInstance(160, 220, Image.SCALE_SMOOTH);
-                    imageLabel.setIcon(new ImageIcon(scaledImage));
-                } else {
-                    imageLabel.setText("No Image Available");
-                }
-                
-                JButton borrowButton = new JButton("Borrow");
-                borrowButton.setBounds(400, 380, 100, 25);
-                borrowButton.addActionListener(new ActionListener() {
-                    public void actionPerformed(ActionEvent e) {
-                        insertPendingBorrow(userID, userName, bookId, bookName);
-                    }});
-                p.add(borrowButton);
-            }
-            rs.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        
-        // Back button to return to book list (p2 panel)
         JButton backButton = new JButton("Back");
-        backButton.setBounds(60, 10, 120, 40);
+        backButton.setFont(new Font("Arial", Font.PLAIN, 14));
         backButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = tabbedPane.getSelectedIndex();
@@ -272,11 +241,93 @@ public class User extends javax.swing.JFrame {
                 tabbedPane.repaint();
             }
         });
-        p.add(backButton);
 
+        // Fetch book info
+        String sql = "SELECT name, author, genre, date, description, image, status FROM books WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, bookId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                String bookName = rs.getString("name");
+                String author = rs.getString("author");
+                String genre = rs.getString("genre");
+                Date date = rs.getDate("date");
+                String description = rs.getString("description");
+                int status = rs.getInt("status");
+                InputStream is = rs.getBinaryStream("image");
+
+                nameArea.setText(bookName);
+                authorLabel.setText("Author: " + author);
+                genreLabel.setText("Genre: " + genre);
+                dateLabel.setText("Date: " + date.toString());
+                descriptionArea.setText(description);
+
+                if (is != null) {
+                    BufferedImage img = ImageIO.read(is);
+                    Image scaled = img.getScaledInstance(160, 220, Image.SCALE_SMOOTH);
+                    imageLabel.setIcon(new ImageIcon(scaled));
+                } else {
+                    imageLabel.setText("No Image");
+                }
+
+                borrowButton.setEnabled(status == 0);
+                borrowButton.setText(status == 0 ? "Borrow" : "Unavailable");
+
+                borrowButton.addActionListener(e -> {
+                    insertPendingBorrow(userID, userName, bookId, bookName);
+                    JOptionPane.showMessageDialog(p, "Borrow request sent for: " + bookName);
+                });
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Layout groups
+        layout.setHorizontalGroup(
+            layout.createSequentialGroup()
+                .addComponent(imageLabel)
+                .addGap(30)
+                .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                    .addComponent(nameArea)
+                    .addComponent(authorLabel)
+                    .addComponent(genreLabel)
+                    .addComponent(dateLabel)
+                    .addComponent(descriptionTitle)
+                    .addComponent(descriptionScroll)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(borrowButton)
+                        .addGap(20)
+                        .addComponent(backButton)
+                    )
+                )
+        );
+
+        layout.setVerticalGroup(
+            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addComponent(imageLabel)
+                .addGroup(layout.createSequentialGroup()
+                    .addComponent(nameArea, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addComponent(authorLabel)
+                    .addComponent(genreLabel)
+                    .addComponent(dateLabel)
+                    .addGap(10)
+                    .addComponent(descriptionTitle)
+                    .addComponent(descriptionScroll)
+                    .addGap(20)
+                    .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                        .addComponent(borrowButton)
+                        .addComponent(backButton)
+                    )
+                )
+        );
+
+        p.add(contentPanel, BorderLayout.CENTER);
         return p;
     }
-    
     
     private JPanel showBookList() {
         JPanel p = new JPanel(new BorderLayout());
@@ -294,7 +345,7 @@ public class User extends javax.swing.JFrame {
         searchField.setPreferredSize(new Dimension(350, 40));
         topPanel.add(searchField);
 
-        JComboBox<String> genreComboBox = new JComboBox<>(new String[]{"All Genres", "Math", "Science", "Business", "History", "Psychology", "Novel", "Philosophy", "Encyclopedia", "Dictionary"});
+        JComboBox<String> genreComboBox = new JComboBox<>(new String[]{"All Genres", "Math", "Science", "History", "Psychology", "Fiction", "Romance", "Fantasy", "Thriller", "Encyclopedia", "Dictionary"});
         genreComboBox.setPreferredSize(new Dimension(130, 40));
         topPanel.add(genreComboBox);
 
@@ -402,44 +453,65 @@ public class User extends javax.swing.JFrame {
     }
     
     private JPanel createBookDetailPanel(int bookId) {
-        JPanel p = new JPanel();
-        p.setLayout(null);
-        String genre = "";
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(Color.WHITE);
+
+        JPanel contentPanel = new JPanel();
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+
+        GroupLayout layout = new GroupLayout(contentPanel);
+        contentPanel.setLayout(layout);
+        layout.setAutoCreateGaps(true);
+        layout.setAutoCreateContainerGaps(true);
 
         JLabel imageLabel = new JLabel();
-        imageLabel.setBounds(400, 50, 160, 220);
-        p.add(imageLabel);
-        
-        JLabel nameLabel = new JLabel("Name: ");
-        nameLabel.setBounds(400, 280, 400, 30);
-        nameLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        p.add(nameLabel);
+        imageLabel.setPreferredSize(new Dimension(160, 220));
+        imageLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
-        JLabel genreLabel = new JLabel("Genre: ");
-        genreLabel.setBounds(400, 310, 400, 30);
-        genreLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        p.add(genreLabel);
+        JTextArea nameArea = new JTextArea();
+        nameArea.setFont(new Font("Arial", Font.BOLD, 18));
+        nameArea.setWrapStyleWord(true);
+        nameArea.setLineWrap(true);
+        nameArea.setEditable(false);
+        nameArea.setOpaque(false);
+        nameArea.setMaximumSize(new Dimension(400, 60));
 
-        JLabel dateLabel = new JLabel("Date: ");
-        dateLabel.setBounds(400, 340, 400, 30);
-        dateLabel.setFont(new Font("Arial", Font.BOLD, 15));
-        p.add(dateLabel);
-        
-        JLabel descriptHeaderLabel = new JLabel("Description");
-        descriptHeaderLabel.setBounds(700, 60, 400, 30);
-        descriptHeaderLabel.setFont(new Font("Arial", Font.BOLD, 20));
-        p.add(descriptHeaderLabel);
-        
-        JLabel descriptLabel = new JLabel();
-        descriptLabel.setBounds(700, 100, 280, 300);
-        descriptLabel.setVerticalAlignment(SwingConstants.TOP);
-        descriptLabel.setHorizontalAlignment(SwingConstants.LEFT);
-        descriptLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-        p.add(descriptLabel);
+        JLabel authorLabel = new JLabel();
+        authorLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
-        // Fetch book details from database
-        String sql = "SELECT name, genre, date, description, image, status FROM books WHERE id = ?";
+        JLabel genreLabel = new JLabel();
+        genreLabel.setFont(new Font("Arial", Font.PLAIN, 16));
 
+        JLabel dateLabel = new JLabel();
+        dateLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+
+        JLabel descriptionTitle = new JLabel("Description:");
+        descriptionTitle.setFont(new Font("Arial", Font.BOLD, 18));
+
+        JTextArea descriptionArea = new JTextArea();
+        descriptionArea.setFont(new Font("Arial", Font.PLAIN, 15));
+        descriptionArea.setLineWrap(true);
+        descriptionArea.setWrapStyleWord(true);
+        descriptionArea.setEditable(false);
+        JScrollPane descriptionScroll = new JScrollPane(descriptionArea);
+        descriptionScroll.setPreferredSize(new Dimension(300, 150));
+        descriptionScroll.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+
+        JButton borrowButton = new JButton("Borrow");
+        borrowButton.setFont(new Font("Arial", Font.BOLD, 14));
+
+        JButton backButton = new JButton("Back");
+        backButton.setFont(new Font("Arial", Font.PLAIN, 14));
+        backButton.addActionListener(e -> {
+            int selectedIndex = tabbedPane.getSelectedIndex();
+            tabbedPane.setComponentAt(selectedIndex, searchPanel);
+            tabbedPane.revalidate();
+            tabbedPane.repaint();
+        });
+
+        // Fetch book info
+        String sql = "SELECT name, author, genre, date, description, image, status FROM books WHERE id = ?";
         try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -448,59 +520,80 @@ public class User extends javax.swing.JFrame {
 
             if (rs.next()) {
                 String bookName = rs.getString("name");
-                genre = rs.getString("genre");
+                String author = rs.getString("author");
+                String genre = rs.getString("genre");
                 Date date = rs.getDate("date");
-                String descript = rs.getString("description");
-                InputStream is = rs.getBinaryStream("image");
-                BufferedImage img = ImageIO.read(is);
+                String description = rs.getString("description");
                 int status = rs.getInt("status");
+                InputStream is = rs.getBinaryStream("image");
 
-                // Update labels
-                nameLabel.setText("Name: " + bookName);
+                nameArea.setText(bookName);
+                authorLabel.setText("Author: " + author);
                 genreLabel.setText("Genre: " + genre);
                 dateLabel.setText("Date: " + date.toString());
-                descriptLabel.setText("<html>" + descript + "</html>");
+                descriptionArea.setText(description);
 
-                // Set image
-                if (img != null) {
-                    Image scaledImage = img.getScaledInstance(160, 220, Image.SCALE_SMOOTH);
-                    imageLabel.setIcon(new ImageIcon(scaledImage));
+                if (is != null) {
+                    BufferedImage img = ImageIO.read(is);
+                    Image scaled = img.getScaledInstance(160, 220, Image.SCALE_SMOOTH);
+                    imageLabel.setIcon(new ImageIcon(scaled));
                 } else {
-                    imageLabel.setText("No Image Available");
+                    imageLabel.setText("No Image");
                 }
-                
-                JButton borrowButton = new JButton("Borrow");
-                borrowButton.setBounds(400, 380, 100, 25);
-                borrowButton.addActionListener(new ActionListener() {
-                    public void actionPerformed(ActionEvent e) {
-                        insertPendingBorrow(userID, userName, bookId, bookName);
-                    }});
-                p.add(borrowButton);
-                
-                if(status == 1){
-                    borrowButton.setEnabled(false);
-                    borrowButton.setText("Unavailable");
-                }
+
+                borrowButton.setEnabled(status == 0);
+                borrowButton.setText(status == 0 ? "Borrow" : "Unavailable");
+
+                borrowButton.addActionListener(e -> {
+                    insertPendingBorrow(userID, userName, bookId, bookName);
+                    JOptionPane.showMessageDialog(p, "Borrow request sent for: " + bookName);
+                });
             }
-            rs.close();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
-        // Back button to return to book list (p2 panel)
-        JButton backButton = new JButton("Back");
-        backButton.setBounds(60, 10, 120, 40);
-        backButton.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                int selectedIndex = tabbedPane.getSelectedIndex();
-                tabbedPane.setComponentAt(selectedIndex, searchPanel);
-                
-                tabbedPane.revalidate();
-                tabbedPane.repaint();
-            }
-        });
-        p.add(backButton);
 
+        // Layout groups
+        layout.setHorizontalGroup(
+            layout.createSequentialGroup()
+                .addComponent(imageLabel)
+                .addGap(30)
+                .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                    .addComponent(nameArea)
+                    .addComponent(authorLabel)
+                    .addComponent(genreLabel)
+                    .addComponent(dateLabel)
+                    .addComponent(descriptionTitle)
+                    .addComponent(descriptionScroll)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(borrowButton)
+                        .addGap(20)
+                        .addComponent(backButton)
+                    )
+                )
+        );
+
+        layout.setVerticalGroup(
+            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                .addComponent(imageLabel)
+                .addGroup(layout.createSequentialGroup()
+                    .addComponent(nameArea, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addComponent(authorLabel)
+                    .addComponent(genreLabel)
+                    .addComponent(dateLabel)
+                    .addGap(10)
+                    .addComponent(descriptionTitle)
+                    .addComponent(descriptionScroll)
+                    .addGap(20)
+                    .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                        .addComponent(borrowButton)
+                        .addComponent(backButton)
+                    )
+                )
+        );
+
+        p.add(contentPanel, BorderLayout.CENTER);
         return p;
     }
     

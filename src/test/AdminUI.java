@@ -25,6 +25,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Time;
 import java.sql.Date;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -343,29 +344,7 @@ public class AdminUI extends javax.swing.JFrame {
         l1.setFont(new Font("Arial", Font.PLAIN, 26));
         topPanel.add(l1);
         
-        topPanel.add(Box.createRigidArea(new Dimension(350, 0)));
-        
-        JTextField searchField = new JTextField("Search book...");
-        searchField.setForeground(Color.GRAY); // Placeholder color
-        searchField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                if (searchField.getText().equals("Search book...")) {
-                    searchField.setText("");
-                    searchField.setForeground(Color.BLACK);
-                }
-            }
-
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (searchField.getText().isEmpty()) {
-                    searchField.setText("Search book...");
-                    searchField.setForeground(Color.GRAY);
-                }
-            }
-        });
-        searchField.setPreferredSize(new Dimension(350, 40));
-        topPanel.add(searchField);
+        topPanel.add(Box.createRigidArea(new Dimension(850, 0)));
 
         // Table with model
         DefaultTableModel model = new DefaultTableModel(new Object[]{"User ID", "User Name", "Book ID", "Book Name", "Date", "Deadline", "Penalty"}, 0);
@@ -515,32 +494,53 @@ public class AdminUI extends javax.swing.JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setPreferredSize(new Dimension(1190, 575));
 
-        // Title panel
+        // Title
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.setPreferredSize(new Dimension(1190, 80));
-        
         JLabel l1 = new JLabel("Users");
         l1.setFont(new Font("Arial", Font.PLAIN, 26));
         topPanel.add(l1);
 
-        // Table with model
-        DefaultTableModel model = new DefaultTableModel(new Object[]{"User ID", "User Name", "Address", "Contact", "Email", "Password"}, 0);
-        JTable table = new JTable(model);
-        table.setRowHeight(30);
-        table.setFont(new Font("Arial", Font.PLAIN, 16));
-        table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 16));
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // User table setup
+        DefaultTableModel userModel = new DefaultTableModel(new Object[]{"User ID", "User Name", "Address", "Contact", "Email", "Password"}, 0);
+        JTable userTable = new JTable(userModel);
+        userTable.setRowHeight(30);
+        userTable.setFont(new Font("Arial", Font.PLAIN, 16));
+        userTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 16));
+        userTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        JScrollPane userScroll = new JScrollPane(userTable);
+        userScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        userScroll.getVerticalScrollBar().setUnitIncrement(16);
 
+        // Borrow history table
+        DefaultTableModel historyModel = new DefaultTableModel(new Object[]{"Book ID", "Book Name", "Date Borrowed", "Penalty"}, 0);
+        JTable historyTable = new JTable(historyModel);
+        historyTable.setRowHeight(28);
+        historyTable.setFont(new Font("Arial", Font.PLAIN, 15));
+        historyTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 15));
+        JScrollPane historyScroll = new JScrollPane(historyTable);
+
+        // Label
+        JLabel historyLabel = new JLabel("Borrow History");
+        historyLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        JPanel historyPanel = new JPanel(new BorderLayout());
+        historyPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        historyPanel.add(historyLabel, BorderLayout.NORTH);
+        historyPanel.add(historyScroll, BorderLayout.CENTER);
+
+        // Split view
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, userScroll, historyPanel);
+        splitPane.setDividerLocation(300);
+        splitPane.setResizeWeight(0.5);
+
+        // Fetch users
         try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
              PreparedStatement stmt = conn.prepareStatement("SELECT id, name, address, contact, email, pass FROM user");
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                model.addRow(new Object[]{
+                userModel.addRow(new Object[]{
                     rs.getInt("id"),
                     rs.getString("name"),
                     rs.getString("address"),
@@ -555,37 +555,69 @@ public class AdminUI extends javax.swing.JFrame {
             JOptionPane.showMessageDialog(p, "Database error: " + ex.getMessage());
         }
 
-        // Final panel assembly
+        // Table listener to load history
+        userTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && userTable.getSelectedRow() != -1) {
+                int userId = (int) userModel.getValueAt(userTable.getSelectedRow(), 0);
+                loadUserHistory(userId, historyModel);
+            }
+        });
+
+        // Final assembly
         p.add(topPanel, BorderLayout.NORTH);
-        p.add(scrollPane, BorderLayout.CENTER);
+        p.add(splitPane, BorderLayout.CENTER);
 
         return p;
     }
     
-    public void bookRegister(String name, String genre, String description, String image) {
+    private void loadUserHistory(int userId, DefaultTableModel historyModel) {
+        historyModel.setRowCount(0); // clear existing data
+
+        String query = "SELECT book_id, book_name, date_borrowed, penalty " +
+                       "FROM borrowed_books WHERE user_id = ? ORDER BY date_borrowed DESC";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                historyModel.addRow(new Object[]{
+                    rs.getInt("book_id"),
+                    rs.getString("book_name"),
+                    rs.getDate("date_borrowed"),
+                    rs.getInt("penalty")
+                });
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    
+    public void bookRegister(String name, String author, String genre, String date, String description, String image) {
         try {
             Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPass);
 
-            String insert = "INSERT INTO books (name, genre, date, description, image, status) VALUES (?, ?, ?, ?, ?, ?)";
+            String insert = "INSERT INTO books (name, author, genre, date, description, image, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement stmt = conn.prepareStatement(insert);
 
             // Convert image file to binary stream
             File imageFile = new File(image);
             FileInputStream fis = new FileInputStream(imageFile);
 
-            // Get current date
-            LocalDate currentDate = LocalDate.now();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-            String formattedDate = currentDate.format(formatter);
-            Date sqlDate = Date.valueOf(currentDate);  // Convert LocalDate to SQL Date
+            Date sqlDate = Date.valueOf(date);
 
             // Set parameters in the prepared statement
             stmt.setString(1, name); // name
-            stmt.setString(2, genre); // genre
-            stmt.setDate(3, sqlDate); // date
-            stmt.setString(4, description);
-            stmt.setBinaryStream(5, fis, (int) imageFile.length()); // image (binary stream)
-            stmt.setInt(6, 0);
+            stmt.setString(2, author); // genre
+            stmt.setString(3, genre); // genre
+            stmt.setDate(4, sqlDate); // date
+            stmt.setString(5, description);
+            stmt.setBinaryStream(6, fis, (int) imageFile.length()); // image (binary stream)
+            stmt.setInt(7, 0);
 
             stmt.executeUpdate();
             JOptionPane.showMessageDialog(mainPanel, "Registration Successful");
@@ -622,17 +654,21 @@ public class AdminUI extends javax.swing.JFrame {
         pastduePanel = new javax.swing.JPanel();
         jLabel5 = new javax.swing.JLabel();
         addBooksPanel = new javax.swing.JPanel();
-        jLabel4 = new javax.swing.JLabel();
-        bookName = new javax.swing.JTextField();
+        uploadBtn = new javax.swing.JButton();
+        submitBtn = new javax.swing.JButton();
+        bookImage = new javax.swing.JLabel();
+        bookGenre = new javax.swing.JComboBox<>();
+        jLabel9 = new javax.swing.JLabel();
+        jLabel7 = new javax.swing.JLabel();
+        jLabel6 = new javax.swing.JLabel();
         jScrollPane1 = new javax.swing.JScrollPane();
         bookDescription = new javax.swing.JTextArea();
-        jLabel6 = new javax.swing.JLabel();
-        jLabel7 = new javax.swing.JLabel();
-        jLabel9 = new javax.swing.JLabel();
-        bookGenre = new javax.swing.JComboBox<>();
-        bookImage = new javax.swing.JLabel();
-        submitBtn = new javax.swing.JButton();
-        uploadBtn = new javax.swing.JButton();
+        datePublished = new javax.swing.JTextField();
+        jLabel4 = new javax.swing.JLabel();
+        jLabel8 = new javax.swing.JLabel();
+        bookAuthor = new javax.swing.JTextField();
+        bookName = new javax.swing.JTextField();
+        jLabel10 = new javax.swing.JLabel();
         addUserPanel = new javax.swing.JPanel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
@@ -771,41 +807,14 @@ public class AdminUI extends javax.swing.JFrame {
 
         addBooksPanel.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
 
-        jLabel4.setFont(new java.awt.Font("Arial", 0, 26)); // NOI18N
-        jLabel4.setText("Add Books");
-        addBooksPanel.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 10, -1, -1));
-
-        bookName.setName("bookName"); // NOI18N
-        addBooksPanel.add(bookName, new org.netbeans.lib.awtextra.AbsoluteConstraints(340, 160, 280, 30));
-
-        jScrollPane1.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-
-        bookDescription.setColumns(20);
-        bookDescription.setRows(5);
-        bookDescription.setName("bookDescription"); // NOI18N
-        jScrollPane1.setViewportView(bookDescription);
-
-        addBooksPanel.add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(340, 260, 280, 140));
-
-        jLabel6.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
-        jLabel6.setText("Description:");
-        addBooksPanel.add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 260, -1, -1));
-
-        jLabel7.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
-        jLabel7.setText("Book Name:");
-        addBooksPanel.add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 165, -1, -1));
-
-        jLabel9.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
-        jLabel9.setText("Book Genre:");
-        addBooksPanel.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 215, -1, -1));
-
-        bookGenre.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Math", "Science", "Business", "History", "Psychology", "Novel", "Philosophy", "Encyclopedia", "Dictionary" }));
-        bookGenre.setName("bookGenre"); // NOI18N
-        addBooksPanel.add(bookGenre, new org.netbeans.lib.awtextra.AbsoluteConstraints(340, 210, 280, -1));
-
-        bookImage.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
-        bookImage.setName("imageLabel"); // NOI18N
-        addBooksPanel.add(bookImage, new org.netbeans.lib.awtextra.AbsoluteConstraints(700, 160, 130, 190));
+        uploadBtn.setText("Upload Image");
+        uploadBtn.setName("uploadBtn"); // NOI18N
+        uploadBtn.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                uploadBtnActionPerformed(evt);
+            }
+        });
+        addBooksPanel.add(uploadBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(770, 340, 130, -1));
 
         submitBtn.setText("Submit");
         submitBtn.setName("submitBtn"); // NOI18N
@@ -814,16 +823,59 @@ public class AdminUI extends javax.swing.JFrame {
                 submitBtnActionPerformed(evt);
             }
         });
-        addBooksPanel.add(submitBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(530, 460, 160, 40));
+        addBooksPanel.add(submitBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(620, 460, 160, 40));
 
-        uploadBtn.setText("Upload Image");
-        uploadBtn.setName("uploadBtn"); // NOI18N
-        uploadBtn.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                uploadBtnActionPerformed(evt);
-            }
-        });
-        addBooksPanel.add(uploadBtn, new org.netbeans.lib.awtextra.AbsoluteConstraints(700, 370, 130, -1));
+        bookImage.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
+        bookImage.setName("imageLabel"); // NOI18N
+        addBooksPanel.add(bookImage, new org.netbeans.lib.awtextra.AbsoluteConstraints(770, 110, 130, 190));
+
+        bookGenre.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Math", "Science", "History", "Psychology", "Fantasy", "Thriller", "Fiction", "Romance", "Encyclopedia", "Dictionary" }));
+        bookGenre.setName("bookGenre"); // NOI18N
+        addBooksPanel.add(bookGenre, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 240, 280, -1));
+
+        jLabel9.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
+        jLabel9.setText("Book Genre:");
+        addBooksPanel.add(jLabel9, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 240, -1, -1));
+
+        jLabel7.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
+        jLabel7.setText("Author:");
+        addBooksPanel.add(jLabel7, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 155, -1, -1));
+
+        jLabel6.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
+        jLabel6.setText("Description:");
+        addBooksPanel.add(jLabel6, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 290, -1, 30));
+
+        jScrollPane1.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        bookDescription.setColumns(20);
+        bookDescription.setLineWrap(true);
+        bookDescription.setRows(5);
+        bookDescription.setWrapStyleWord(true);
+        bookDescription.setName("bookDescription"); // NOI18N
+        jScrollPane1.setViewportView(bookDescription);
+
+        addBooksPanel.add(jScrollPane1, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 290, 280, 140));
+
+        datePublished.setName("datePublished"); // NOI18N
+        addBooksPanel.add(datePublished, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 190, 280, 30));
+
+        jLabel4.setFont(new java.awt.Font("Arial", 0, 26)); // NOI18N
+        jLabel4.setText("Add Books");
+        addBooksPanel.add(jLabel4, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 10, -1, -1));
+
+        jLabel8.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
+        jLabel8.setText("Date Published:");
+        addBooksPanel.add(jLabel8, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 195, -1, -1));
+
+        bookAuthor.setName("bookName"); // NOI18N
+        addBooksPanel.add(bookAuthor, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 150, 280, 30));
+
+        bookName.setName("bookName"); // NOI18N
+        addBooksPanel.add(bookName, new org.netbeans.lib.awtextra.AbsoluteConstraints(420, 110, 280, 30));
+
+        jLabel10.setFont(new java.awt.Font("Arial", 0, 18)); // NOI18N
+        jLabel10.setText("Book Name:");
+        addBooksPanel.add(jLabel10, new org.netbeans.lib.awtextra.AbsoluteConstraints(270, 115, -1, -1));
 
         tabbedPane.addTab("tab5", addBooksPanel);
 
@@ -867,6 +919,16 @@ public class AdminUI extends javax.swing.JFrame {
         tabbedPane.setSelectedIndex(4);
     }//GEN-LAST:event_addBooksBtnActionPerformed
 
+    private void submitBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_submitBtnActionPerformed
+        bookRegister(bookName.getText(), bookAuthor.getText() , bookGenre.getSelectedItem().toString(), datePublished.getText(), bookDescription.getText(), filePath);
+        datePublished.setText("");
+        bookName.setText("");
+        bookAuthor.setText("");
+        bookGenre.setSelectedItem(1);
+        bookDescription.setText("");
+        bookImage.setIcon(null);
+    }//GEN-LAST:event_submitBtnActionPerformed
+
     private void uploadBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_uploadBtnActionPerformed
         JFileChooser fileChooser = new JFileChooser();
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Images", "jpg", "jpeg", "png");
@@ -885,14 +947,6 @@ public class AdminUI extends javax.swing.JFrame {
             bookImage.setIcon(new ImageIcon(scaledImage));
         }
     }//GEN-LAST:event_uploadBtnActionPerformed
-
-    private void submitBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_submitBtnActionPerformed
-        bookRegister(bookName.getText(), bookGenre.getSelectedItem().toString(), bookDescription.getText(), filePath);
-        bookName.setText("");
-        bookGenre.setSelectedItem(1);
-        bookDescription.setText("");
-        bookImage.setIcon(null);
-    }//GEN-LAST:event_submitBtnActionPerformed
 
     /**
      * @param args the command line arguments
@@ -934,6 +988,7 @@ public class AdminUI extends javax.swing.JFrame {
     private javax.swing.JPanel addBooksPanel;
     private javax.swing.JButton addUserBtn;
     private javax.swing.JPanel addUserPanel;
+    private javax.swing.JTextField bookAuthor;
     private javax.swing.JTextArea bookDescription;
     private javax.swing.JComboBox<String> bookGenre;
     private javax.swing.JLabel bookImage;
@@ -942,13 +997,16 @@ public class AdminUI extends javax.swing.JFrame {
     private javax.swing.JPanel borrowedPanel;
     private javax.swing.JPanel dashbboardPanel;
     private javax.swing.JButton dashboardBtn;
+    private javax.swing.JTextField datePublished;
     private javax.swing.JLabel exitButton;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
     private javax.swing.JLabel jLabel7;
+    private javax.swing.JLabel jLabel8;
     private javax.swing.JLabel jLabel9;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JSeparator jSeparator8;
